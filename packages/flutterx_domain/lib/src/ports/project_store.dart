@@ -7,6 +7,19 @@ import 'package:flutterx_domain/src/result.dart';
 /// Project-side persistence port (docs/06 §2.1) — implemented in
 /// `flutterx_storage`.
 abstract interface class ProjectStore {
+  /// Walks up from [startDir] to the nearest directory holding
+  /// `pubspec.yaml` or `flutterx.yaml` (the shim's project-root walk,
+  /// docs/02 §8.3). `null` when none is found.
+  Future<Project?> findProject(String startDir);
+
+  /// Writes the user-intent file `flutterx.yaml` (docs/04 §3.3): an exact
+  /// [pinVersion], or a [policyChannel] to track on each resolve.
+  Future<Result<void>> writePin(
+    Project project, {
+    String? pinVersion,
+    String? policyChannel,
+  });
+
   /// Collects the evidence file contents the Scanner parses (docs/03 §2.1).
   /// Missing files are simply absent — never an error.
   Future<EvidenceFiles> readEvidence(Project project);

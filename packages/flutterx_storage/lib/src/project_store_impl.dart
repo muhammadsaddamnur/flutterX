@@ -35,6 +35,40 @@ final class FileProjectStore implements ProjectStore {
   final CreateLink createLink;
 
   @override
+  Future<Project?> findProject(String startDir) async {
+    var dir = Directory(startDir).absolute;
+    while (true) {
+      if (File(p.join(dir.path, 'pubspec.yaml')).existsSync() ||
+          File(p.join(dir.path, 'flutterx.yaml')).existsSync()) {
+        return Project(rootPath: dir.path);
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) return null;
+      dir = parent;
+    }
+  }
+
+  @override
+  Future<Result<void>> writePin(
+    Project project, {
+    String? pinVersion,
+    String? policyChannel,
+  }) async {
+    assert(
+      (pinVersion == null) != (policyChannel == null),
+      'exactly one of pin or policy',
+    );
+    final file = File(p.join(project.rootPath, 'flutterx.yaml'));
+    final buffer = StringBuffer()
+      ..writeln('# FlutterX project intent — hand-editable (docs/04 §4).')
+      ..writeln(
+        pinVersion != null ? 'flutter: $pinVersion' : 'policy: $policyChannel',
+      );
+    await file.writeAsString(buffer.toString());
+    return const Result.ok(null);
+  }
+
+  @override
   Future<EvidenceFiles> readEvidence(Project project) async {
     final files = <String, String>{};
     for (final name in _evidenceFileNames) {

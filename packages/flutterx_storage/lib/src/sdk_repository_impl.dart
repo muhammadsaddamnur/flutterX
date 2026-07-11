@@ -245,6 +245,17 @@ final class StoreSdkRepository implements SdkRepository {
     return sdks;
   }
 
+  @override
+  Future<Map<String, List<String>>> references() async {
+    final state = await layout.loadState();
+    final refs = <String, List<String>>{};
+    for (final ref in state.valueOrNull?.projects ?? const <ProjectRef>[]) {
+      if (!Directory(ref.path).existsSync()) continue; // advisory registry
+      refs.putIfAbsent(ref.version, () => []).add(ref.path);
+    }
+    return refs;
+  }
+
   /// Stable on-disk name for a linked artifact payload.
   static String artifactFileName(ArtifactRef artifact) {
     final segments = artifact.url.pathSegments;

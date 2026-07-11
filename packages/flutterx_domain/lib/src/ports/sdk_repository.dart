@@ -38,4 +38,8 @@ abstract interface class SdkRepository {
 
   /// Everything currently provisioned.
   Future<List<InstalledSdk>> installed();
+
+  /// Which projects reference which version (advisory registry,
+  /// docs/05 §6.1) — powers `list`'s USED BY column and `remove`'s check.
+  Future<Map<String, List<String>>> references();
 }

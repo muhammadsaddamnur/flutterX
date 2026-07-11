@@ -1,8 +1,8 @@
 import 'dart:io';
 
-void main(List<String> args) {
-  stderr.writeln(
-    'flutterx: not yet implemented (bootstrap scaffold — see docs/09-task-list.md)',
-  );
-  exitCode = 1;
+import 'package:flutterx_cli/flutterx_cli.dart';
+
+Future<void> main(List<String> args) async {
+  final cli = await buildCli();
+  exitCode = await cli.run(args);
 }

@@ -57,15 +57,15 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.6 · `flutterx_cli` + first commands
 
-- [ ] **T1.6.1** CLI scaffold: `package:args` command runner, `composition_root.dart`, global flags (`--help/--verbose/--json/--no-color`) — [06 §9](06-package-design.md), [04 §1.1](04-cli-specification.md)
-- [ ] **T1.6.2** Output layer: tables, spinners, error formatter (`✗ code / cause / next actions`), versioned `--json` envelope — [04 §1.3](04-cli-specification.md), [06 §9](06-package-design.md)
-- [ ] **T1.6.3** `exit_codes.dart`: exhaustive `FxFailure`→code switch per the public contract (0,1,2,10–17,20) — [04 §1.2](04-cli-specification.md)
-- [ ] **T1.6.4** Use cases + commands: `install` (flags `--force/--skip-artifacts/--precache`) — [04 §3.1](04-cli-specification.md)
-- [ ] **T1.6.5** `remove` (reference check → exit 17; `--yes` semantics) — [04 §3.2](04-cli-specification.md)
-- [ ] **T1.6.6** `list` (installed table + `--remote` filter) — [04 §3.6](04-cli-specification.md)
-- [ ] **T1.6.7** `use` (`--pin/--policy/--no-install`; writes `flutterx.yaml` + lock + link; gitignore hint) — [04 §3.3](04-cli-specification.md)
-- [ ] **T1.6.8** `current` (project/global, lock freshness line) — [04 §3.5](04-cli-specification.md)
-- [ ] **T1.6.9** Golden output tests (human + `--json`) + exit-code matrix tests — [06 §10](06-package-design.md)
+- [x] **T1.6.1** CLI scaffold: `package:args` command runner, `composition_root.dart`, global flags (`--help/--verbose/--json/--no-color`) — [06 §9](06-package-design.md), [04 §1.1](04-cli-specification.md)
+- [x] **T1.6.2** Output layer: tables, spinners, error formatter (`✗ code / cause / next actions`), versioned `--json` envelope — [04 §1.3](04-cli-specification.md), [06 §9](06-package-design.md) *(step lines instead of animated spinners for now)*
+- [x] **T1.6.3** `exit_codes.dart`: exhaustive `FxFailure`→code switch per the public contract (0,1,2,10–17,20) — [04 §1.2](04-cli-specification.md)
+- [x] **T1.6.4** Use cases + commands: `install` (flags `--force/--skip-artifacts/--refresh`; `--precache` lands with the proxy commands M1.9) — [04 §3.1](04-cli-specification.md)
+- [x] **T1.6.5** `remove` (reference check → exit 17 with holder list) — [04 §3.2](04-cli-specification.md)
+- [x] **T1.6.6** `list` (installed table incl. USED BY + `--remote` filter) — [04 §3.6](04-cli-specification.md)
+- [x] **T1.6.7** `use` (`--policy/--no-install`; writes `flutterx.yaml` + lock + link; gitignore hint) — [04 §3.3](04-cli-specification.md)
+- [x] **T1.6.8** `current` (project detection, lock freshness via evidenceHash) — [04 §3.5](04-cli-specification.md)
+- [x] **T1.6.9** Output tests (human + `--json`) + exit-code matrix tests over in-memory port fakes — [06 §10](06-package-design.md)
 
 ### M1.7 · Shims + project linking
 

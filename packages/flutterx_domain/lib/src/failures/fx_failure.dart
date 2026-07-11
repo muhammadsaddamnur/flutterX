@@ -23,6 +23,10 @@ sealed class FxFailure {
   /// empty, but should rarely be.
   List<String> get nextActions;
 
+  /// Supporting lines rendered between message and next actions — e.g.
+  /// the projects holding a reference, or per-candidate denial rows.
+  List<String> get details => const [];
+
   @override
   String toString() => '$code: $message';
 }
@@ -94,6 +98,12 @@ final class PolicyDenied extends FxFailure {
 
   /// Rule id → human reason, per denied candidate rendering.
   final List<({String candidate, String ruleId, String reason})> denials;
+
+  @override
+  List<String> get details => [
+    for (final d in denials)
+      '${d.candidate}: denied by ${d.ruleId} — ${d.reason}',
+  ];
 
   @override
   String get code => 'FX-RULE-001';
@@ -177,6 +187,9 @@ final class ResourceInUse extends FxFailure {
 
   /// Project paths (or other holders) that still reference the resource.
   final List<String> referencedBy;
+
+  @override
+  List<String> get details => referencedBy;
 
   @override
   String get code => 'FX-STORE-001';
