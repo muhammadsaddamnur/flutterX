@@ -14,3 +14,4 @@ export 'src/scanner/extractors/pubspec_lock_extractor.dart';
 export 'src/scanner/extractors/puro_extractor.dart';
 export 'src/scanner/extractors/resolution_lock_extractor.dart';
 export 'src/scanner/standard_scanner.dart';
+export 'src/solver/standard_solver.dart';

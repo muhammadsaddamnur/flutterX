@@ -115,10 +115,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.2 · Version Solver
 
-- [ ] **T2.2.1** Pin path: registry validation, `FX-SOLVE-001` fallback — [03 §3.1](03-sdk-intelligence.md)
-- [ ] **T2.2.2** Constraint-intersection solve with Dart↔Flutter translation + provenance trace (|C| after each step) — [03 §3.1](03-sdk-intelligence.md)
-- [ ] **T2.2.3** Conflict explanation: minimal conflicting pair + remediation suggestions — [03 §3.2](03-sdk-intelligence.md)
-- [ ] **T2.2.4** Edge cases: pre-release constraints, `any`, registry gaps → beta candidates — [03 §3.2](03-sdk-intelligence.md)
+- [x] **T2.2.1** Pin path: registry validation, `FX-SOLVE-001` fallback — [03 §3.1](03-sdk-intelligence.md)
+- [x] **T2.2.2** Constraint-intersection solve with Dart↔Flutter translation + provenance trace (|C| after each step) — [03 §3.1](03-sdk-intelligence.md)
+- [x] **T2.2.3** Conflict explanation: minimal conflicting pair + remediation suggestions — [03 §3.2](03-sdk-intelligence.md) *(also the single-constraint-vs-registry case, with Dart→implied-Flutter-range translation in messages)*
+- [x] **T2.2.4** Edge cases: pre-release constraints, `any`, registry gaps → beta candidates — [03 §3.2](03-sdk-intelligence.md)
 
 ### M2.3 · Rule Engine
 
