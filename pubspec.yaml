@@ -36,5 +36,5 @@ melos:
       run: melos exec --dir-exists=test -- dart test --exclude-tags=integration
       description: Unit and use-case tests in every package.
     test:integration:
-      run: melos exec --dir-exists=test -- dart test --tags=integration
-      description: Integration tests (real git, filesystem, recorded HTTP).
+      run: melos exec --dir-exists=test/integration -- dart test --tags=integration test/integration
+      description: Integration tests (real git, filesystem, recorded HTTP). Convention — tagged @Tags(['integration']) AND under test/integration/.

@@ -229,7 +229,8 @@ I/O at the edges, pure decision in the middle — every use case follows this sa
 ```dart
 abstract interface class GitEngine {       // consumed by storage's SdkRepository impl
   Future<Result<void>> ensureBareRepo(String url);
-  Future<Result<void>> fetchTag(String tag, {FetchDepth depth});
+  Future<bool> hasTag(String tag);                   // "if tag not in bareRepo" (05 §4.1)
+  Future<Result<void>> fetchTag(String tag);         // partial clone; full-fetch fallback internal (05 §4.1)
   Future<Result<String>> addWorktree(String tag, String path);
   Future<Result<void>> removeWorktree(String path);
   Future<GitHealth> fsck();                          // summary for doctor/repair

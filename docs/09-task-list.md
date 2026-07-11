@@ -30,12 +30,12 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.3 · `flutterx_git` engine
 
-- [ ] **T1.3.1** `GitEngine` interface impl over system git: version detection with ≥2.30 gate — [06 §5](06-package-design.md)
-- [ ] **T1.3.2** `ensureBareRepo` + `fetchTag` with `--filter=blob:none` partial clone and full-fetch fallback (no shallow/`--depth`) — [05 §4.1](05-storage-design.md)
-- [ ] **T1.3.3** `addWorktree` / `removeWorktree` via git porcelain — [05 §4.2](05-storage-design.md)
-- [ ] **T1.3.4** `fsck()` health summary + `repack({aggressive})` — [06 §5](06-package-design.md)
-- [ ] **T1.3.5** stderr→`FxFailure` translation table (`FX-GIT-*`) + network retry policy (3 attempts, backoff) — [06 §5](06-package-design.md)
-- [ ] **T1.3.6** Integration tests against a local fixture remote (tagged `integration`) — [06 §10](06-package-design.md)
+- [x] **T1.3.1** `GitEngine` interface impl over system git: version detection with ≥2.30 gate — [06 §5](06-package-design.md)
+- [x] **T1.3.2** `ensureBareRepo` + `fetchTag` with `--filter=blob:none` partial clone and full-fetch fallback (no shallow/`--depth`) — [05 §4.1](05-storage-design.md)
+- [x] **T1.3.3** `addWorktree` / `removeWorktree` via git porcelain — [05 §4.2](05-storage-design.md)
+- [x] **T1.3.4** `fsck()` health summary + `repack({aggressive})` — [06 §5](06-package-design.md)
+- [x] **T1.3.5** stderr→`FxFailure` translation table (`FX-GIT-*`) + network retry policy (3 attempts, backoff) — [06 §5](06-package-design.md)
+- [x] **T1.3.6** Integration tests against a local fixture remote (tagged `integration`) — [06 §10](06-package-design.md) *(convention: tagged AND under `test/integration/`; CI integration step enabled)*
 
 ### M1.4 · `flutterx_storage` engine
 

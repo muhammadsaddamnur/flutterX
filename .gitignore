@@ -8,10 +8,11 @@ pubspec_overrides.yaml
 # Coverage
 coverage/
 
-# IDE
+# IDE / editors
 .idea/
 *.iml
 .vscode/settings.json
+.obsidian/
 
 # OS
 .DS_Store

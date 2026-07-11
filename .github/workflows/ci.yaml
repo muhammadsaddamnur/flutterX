@@ -47,6 +47,5 @@ jobs:
         run: dart pub global activate melos
       - name: Unit + use-case tests
         run: dart pub global run melos run test
-      # TODO(T1.3.6): enable 'melos run test:integration' once the first
-      # integration suites exist — 'dart test --tags=integration' exits
-      # non-zero while no test carries the tag.
+      - name: Integration tests
+        run: dart pub global run melos run test:integration
