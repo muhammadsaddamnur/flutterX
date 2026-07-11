@@ -69,11 +69,11 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.7 · Shims + project linking
 
-- [ ] **T1.7.1** POSIX `flutter`/`dart` shims: project-root walk, lock read fast path (≤10 ms), exec passthrough — [02 §8.3](02-system-architecture.md), [05 §9](05-storage-design.md)
-- [ ] **T1.7.2** Cold path: missing lock → hint + configurable auto-`resolve` (MVP: hint only, points to `use`) — [02 §8.3](02-system-architecture.md)
-- [ ] **T1.7.3** `flutter upgrade` interception inside managed SDKs + `FLUTTERX_UNMANAGED=1` escape hatch — [05 §4.3](05-storage-design.md)
-- [ ] **T1.7.4** `ShimInstaller.ensure()` in `flutterx_platform` + PATH guidance text — [06 §8](06-package-design.md)
-- [ ] **T1.7.5** E2E test: tmp `FLUTTERX_HOME`, `install → use → shim flutter --version` — [08 §4](08-contributing-guide.md)
+- [x] **T1.7.1** POSIX `flutter`/`dart` shims: project-root walk, lock read fast path (≤10 ms), exec passthrough — [02 §8.3](02-system-architecture.md), [05 §9](05-storage-design.md) *(fast path reads the `.flutterx/sdk` link — the materialized lock, per ADR-6)*
+- [x] **T1.7.2** Cold path: missing lock → hint + configurable auto-`resolve` (MVP: hint only, points to `use`) — [02 §8.3](02-system-architecture.md)
+- [x] **T1.7.3** `flutter upgrade` interception inside managed SDKs + `FLUTTERX_UNMANAGED=1` escape hatch — [05 §4.3](05-storage-design.md) *(also intercepts `downgrade`/`channel`)*
+- [x] **T1.7.4** `ShimInstaller.ensure()` in `flutterx_platform` + PATH guidance text — [06 §8](06-package-design.md) *(ensured on every CLI start; versioned template, idempotent)*
+- [x] **T1.7.5** E2E test: tmp `FLUTTERX_HOME`, `install → use → shim flutter --version` — [08 §4](08-contributing-guide.md) *(7 integration tests: passthrough, walk-up, cold path, interception, bypass, broken link)*
 
 ### M1.8 · `doctor` + `cache status/refresh`
 

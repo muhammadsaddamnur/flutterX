@@ -5,6 +5,7 @@ import 'package:flutterx_application/flutterx_application.dart';
 import 'package:flutterx_cli/src/cli.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
 import 'package:flutterx_git/flutterx_git.dart';
+import 'package:flutterx_platform/flutterx_platform.dart';
 import 'package:flutterx_registry/flutterx_registry.dart';
 import 'package:flutterx_storage/flutterx_storage.dart';
 import 'package:path/path.dart' as p;
@@ -26,6 +27,10 @@ Future<FlutterXCli> buildCli() async {
     }
     exit(15);
   }
+
+  // Keep shims current on every run — idempotent and cheap (docs/02 §8.3).
+  // PATH guidance is doctor's job (M1.8); failures here are non-fatal.
+  await ShimInstaller(binDir: layout.binDir).ensure();
 
   final lock = StoreLock(layout.storeLockFile);
   final git = SystemGitEngine(bareRepoPath: layout.bareRepoDir);
