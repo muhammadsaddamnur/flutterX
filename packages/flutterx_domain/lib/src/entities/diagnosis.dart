@@ -61,16 +61,21 @@ final class HealthProbes {
 
 /// A single observation, e.g. kind `project-link`, subject
 /// `~/work/app/.flutterx/sdk`, ok `false`, detail `target missing`.
+///
+/// [severity] matters only when `!ok`: warnings keep doctor at exit 0,
+/// errors make it exit 15 (docs/04 §3.7).
 final class Probe {
   const Probe({
     required this.kind,
     required this.subject,
     required this.ok,
     this.detail,
+    this.severity = Severity.warning,
   });
 
   final String kind;
   final String subject;
   final bool ok;
   final String? detail;
+  final Severity severity;
 }

@@ -77,10 +77,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.8 · `doctor` + `cache status/refresh`
 
-- [ ] **T1.8.1** Health probes (read-only, parallel): store, project, platform sections — [04 §3.7](04-cli-specification.md), [03 §9.2](03-sdk-intelligence.md)
-- [ ] **T1.8.2** `doctor` command (`--project/--store/--all/--json/--path-fix`); exit 0 on warnings — [04 §3.7](04-cli-specification.md)
-- [ ] **T1.8.3** `cache status` + `cache refresh [--registry-only]` — [04 §3.10](04-cli-specification.md)
-- [ ] **T1.8.4** `config` command (get/set/unset/list, dot-notation keys) — [04 §3.14](04-cli-specification.md)
+- [x] **T1.8.1** Health probes (read-only, parallel): store, project, platform sections — [04 §3.7](04-cli-specification.md), [03 §9.2](03-sdk-intelligence.md) *(ports `StoreHealthPort`/`PlatformHealthPort`; probe kinds align with the FX-R catalogue for M2.7)*
+- [x] **T1.8.2** `doctor` command (`--project/--store/--all/--json/--path-fix`); exit 0 on warnings — [04 §3.7](04-cli-specification.md)
+- [x] **T1.8.3** `cache status` + `cache refresh [--registry-only]` — [04 §3.10](04-cli-specification.md) *(`GitEngine.refreshRemote` added — blobless refs refresh)*
+- [x] **T1.8.4** `config` command (get/set/unset/list, dot-notation keys) — [04 §3.14](04-cli-specification.md)
 
 ### M1.9 · Proxy commands
 

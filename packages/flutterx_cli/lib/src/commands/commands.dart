@@ -54,7 +54,20 @@ int fail(Console console, FxFailure failure) {
   return ExitCodes.forFailure(failure);
 }
 
-/// The M1.6 command set (docs/04 §3.1–§3.6). Later milestones append here.
+/// Human-readable sizes for `cache status` (docs/04 §3.10).
+String formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  var value = bytes.toDouble();
+  var unit = -1;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return '${value.toStringAsFixed(value >= 100 ? 0 : 1)} ${units[unit]}';
+}
+
+/// The command set (docs/04 §3). Later milestones append here.
 final commandSpecs = <CommandSpec>[
   CommandSpec(
     name: 'install',
@@ -234,6 +247,209 @@ final commandSpecs = <CommandSpec>[
             'commit resolution.lock; add .flutterx/sdk to .gitignore',
           );
           return ExitCodes.ok;
+      }
+    },
+  ),
+  CommandSpec(
+    name: 'doctor',
+    description: 'Diagnose the environment (read-only).',
+    configure: (parser) => parser
+      ..addFlag('store', negatable: false)
+      ..addFlag('project', negatable: false)
+      ..addFlag('all', negatable: false)
+      ..addFlag('path-fix', negatable: false),
+    run: (ctx) async {
+      // Section flags narrow the run; none (or --all) means everything.
+      final onlyStore = ctx.args['store'] as bool;
+      final onlyProject = ctx.args['project'] as bool;
+      final all = ctx.args['all'] as bool || (!onlyStore && !onlyProject);
+      final report = await ctx.api.doctor.execute(
+        ctx.workingDirectory,
+        store: all || onlyStore,
+        project: all || onlyProject,
+        platform: all,
+      );
+
+      if (ctx.args['path-fix'] as bool) {
+        final pathProbe = report.sections
+            .expand((s) => s.probes)
+            .where((probe) => probe.kind == 'path' && !probe.ok)
+            .firstOrNull;
+        ctx.console.write(
+          pathProbe?.detail?.split('Fix: ').last ??
+              '# PATH already ok — nothing to fix',
+        );
+        return ExitCodes.ok;
+      }
+
+      if (ctx.console.json) {
+        ctx.console.emitJson(
+          ok: report.healthy,
+          data: {
+            'sections': [
+              for (final section in report.sections)
+                {
+                  'name': section.name,
+                  'probes': [
+                    for (final probe in section.probes)
+                      {
+                        'kind': probe.kind,
+                        'subject': probe.subject,
+                        'ok': probe.ok,
+                        'detail': ?probe.detail,
+                        'severity': probe.severity.name,
+                      },
+                  ],
+                },
+            ],
+            'warnings': report.warnings,
+            'errors': report.errors,
+          },
+        );
+        return report.healthy ? ExitCodes.ok : 15;
+      }
+
+      ctx.console.write('FlutterX — environment check');
+      for (final section in report.sections) {
+        ctx.console.write('');
+        ctx.console.write(' ${section.name}');
+        for (final probe in section.probes) {
+          final label = probe.detail == null
+              ? probe.subject
+              : '${probe.subject} — ${probe.detail}';
+          if (probe.ok) {
+            ctx.console.write('  ✓ ${probe.kind}: $label');
+          } else if (probe.severity == Severity.error) {
+            ctx.console.write('  ✗ ${probe.kind}: $label');
+          } else {
+            ctx.console.write('  ⚠ ${probe.kind}: $label');
+          }
+        }
+      }
+      ctx.console.write('');
+      ctx.console.write(
+        '${report.warnings} warning(s), ${report.errors} error(s).',
+      );
+      return report.healthy ? ExitCodes.ok : 15;
+    },
+  ),
+  CommandSpec(
+    name: 'cache',
+    description: 'Inspect or refresh the shared store.',
+    configure: (parser) => parser..addFlag('registry-only', negatable: false),
+    run: (ctx) async {
+      final sub = ctx.args.rest.isEmpty ? 'status' : ctx.args.rest.first;
+      switch (sub) {
+        case 'status':
+          final status = await ctx.api.cache.status();
+          if (ctx.console.json) {
+            ctx.console.emitJson(
+              ok: true,
+              data: {
+                'bareRepoBytes': status.bareRepoBytes,
+                'versionBytes': status.versionBytes,
+                'artifactCount': status.artifactCount,
+                'artifactBytes': status.artifactBytes,
+                'downloadsBytes': status.downloadsBytes,
+                'totalBytes': status.totalBytes,
+                'uncommittedJournalEntries': status.uncommittedJournalEntries,
+              },
+            );
+            return ExitCodes.ok;
+          }
+          ctx.console.table([
+            ['Shared git objects', formatBytes(status.bareRepoBytes)],
+            for (final entry in status.versionBytes.entries)
+              ['version ${entry.key}', formatBytes(entry.value)],
+            [
+              'artifacts (${status.artifactCount})',
+              formatBytes(status.artifactBytes),
+            ],
+            ['downloads', formatBytes(status.downloadsBytes)],
+            ['total', formatBytes(status.totalBytes)],
+          ]);
+          if (status.uncommittedJournalEntries > 0) {
+            ctx.console.warn(
+              '${status.uncommittedJournalEntries} interrupted operation(s)'
+              ' — see `flutterx doctor`',
+            );
+          }
+          return ExitCodes.ok;
+        case 'refresh':
+          final result = await ctx.api.cache.refresh(
+            registryOnly: ctx.args['registry-only'] as bool,
+          );
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              if (ctx.console.json) {
+                ctx.console.emitJson(
+                  ok: true,
+                  data: {'releases': value.releases.length},
+                );
+              } else {
+                ctx.console.success(
+                  'registry refreshed — ${value.releases.length} releases '
+                  'known',
+                );
+              }
+              return ExitCodes.ok;
+          }
+        default:
+          ctx.console.writeError(
+            '✗ usage: flutterx cache <status|refresh> '
+            '(gc and verify land with M2.8)',
+          );
+          return ExitCodes.usage;
+      }
+    },
+  ),
+  CommandSpec(
+    name: 'config',
+    description: 'Read or write global configuration.',
+    configure: (_) {},
+    run: (ctx) async {
+      final rest = ctx.args.rest;
+      final action = rest.isEmpty ? 'list' : rest.first;
+      switch ((action, rest.length)) {
+        case ('list', 1) || ('list', 0):
+          final entries = await ctx.api.config.list();
+          if (ctx.console.json) {
+            ctx.console.emitJson(ok: true, data: entries);
+          } else if (entries.isEmpty) {
+            ctx.console.info('no config set');
+          } else {
+            ctx.console.table([
+              for (final entry in entries.entries) [entry.key, entry.value],
+            ]);
+          }
+          return ExitCodes.ok;
+        case ('get', 2):
+          final value = await ctx.api.config.get(rest[1]);
+          if (ctx.console.json) {
+            ctx.console.emitJson(ok: true, data: {rest[1]: value});
+          } else {
+            ctx.console.write(value ?? '(unset)');
+          }
+          return ExitCodes.ok;
+        case ('set', 3):
+          final result = await ctx.api.config.set(rest[1], rest[2]);
+          if (result case Err(:final failure)) {
+            return fail(ctx.console, failure);
+          }
+          ctx.console.success('${rest[1]} = ${rest[2]}');
+          return ExitCodes.ok;
+        case ('unset', 2):
+          await ctx.api.config.unset(rest[1]);
+          ctx.console.success('${rest[1]} unset');
+          return ExitCodes.ok;
+        default:
+          ctx.console.writeError(
+            '✗ usage: flutterx config [list | get <key> | set <key> <value> '
+            '| unset <key>]',
+          );
+          return ExitCodes.usage;
       }
     },
   ),

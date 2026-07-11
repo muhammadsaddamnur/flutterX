@@ -29,8 +29,9 @@ Future<FlutterXCli> buildCli() async {
   }
 
   // Keep shims current on every run — idempotent and cheap (docs/02 §8.3).
-  // PATH guidance is doctor's job (M1.8); failures here are non-fatal.
-  await ShimInstaller(binDir: layout.binDir).ensure();
+  // PATH guidance is doctor's job; failures here are non-fatal.
+  final shimInstaller = ShimInstaller(binDir: layout.binDir);
+  await shimInstaller.ensure();
 
   final lock = StoreLock(layout.storeLockFile);
   final git = SystemGitEngine(bareRepoPath: layout.bareRepoDir);
@@ -65,6 +66,10 @@ Future<FlutterXCli> buildCli() async {
       lock: lock,
       createLink: _createLink,
     ),
+    storeHealth: StoreHealth(layout: layout, git: git, journal: journal),
+    platformHealth: PlatformHealth(shimInstaller: shimInstaller),
+    cacheOps: StoreCacheOps(layout: layout, git: git, journal: journal),
+    config: FileConfigStore(configFilePath: layout.configFile),
   );
 
   return FlutterXCli(

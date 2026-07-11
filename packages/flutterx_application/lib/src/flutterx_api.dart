@@ -1,6 +1,9 @@
 import 'package:flutterx_application/src/use_cases/install_sdk.dart';
 import 'package:flutterx_application/src/use_cases/list_sdks.dart';
+import 'package:flutterx_application/src/use_cases/manage_cache.dart';
+import 'package:flutterx_application/src/use_cases/manage_config.dart';
 import 'package:flutterx_application/src/use_cases/remove_sdk.dart';
+import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
 import 'package:flutterx_application/src/use_cases/use_sdk.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
@@ -13,6 +16,10 @@ final class FlutterXApi {
     required SdkRepository sdkRepository,
     required RegistryPort registry,
     required ProjectStore projectStore,
+    required StoreHealthPort storeHealth,
+    required PlatformHealthPort platformHealth,
+    required CacheOps cacheOps,
+    required ConfigPort config,
     DateTime Function()? clock,
   }) : install = InstallSdk(sdkRepository, registry),
        remove = RemoveSdk(sdkRepository),
@@ -23,11 +30,17 @@ final class FlutterXApi {
          clock ?? DateTime.now,
        ),
        current = ShowCurrent(projectStore),
-       list = ListSdks(sdkRepository, registry);
+       list = ListSdks(sdkRepository, registry),
+       doctor = RunDoctor(storeHealth, platformHealth, projectStore),
+       cache = ManageCache(cacheOps, registry),
+       config = ManageConfig(config);
 
   final InstallSdk install;
   final RemoveSdk remove;
   final UseSdk use;
   final ShowCurrent current;
   final ListSdks list;
+  final RunDoctor doctor;
+  final ManageCache cache;
+  final ManageConfig config;
 }

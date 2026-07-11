@@ -126,6 +126,68 @@ final class FakeProjectStore implements ProjectStore {
       const Result.ok(null);
 }
 
+final class FakeHealth implements StoreHealthPort, PlatformHealthPort {
+  var storeProbes = <Probe>[
+    const Probe(kind: 'store-state', subject: 'state.json', ok: true),
+  ];
+  var platformProbes = <Probe>[
+    const Probe(kind: 'git', subject: '2.51', ok: true),
+  ];
+
+  @override
+  Future<List<Probe>> probeStore() async => storeProbes;
+
+  @override
+  Future<List<Probe>> probeProject(Project project) async => const [
+    Probe(kind: 'project-lock', subject: 'lock', ok: true),
+  ];
+
+  @override
+  Future<List<Probe>> probePlatform() async => platformProbes;
+}
+
+final class FakeCacheOps implements CacheOps {
+  @override
+  Future<CacheStatus> status() async => CacheStatus(
+    bareRepoBytes: 1024 * 1024 * 1900,
+    versionBytes: const {'3.22.2': 214 * 1024 * 1024},
+    artifactCount: 3,
+    artifactBytes: 305 * 1024 * 1024,
+    downloadsBytes: 0,
+    uncommittedJournalEntries: 0,
+  );
+
+  @override
+  Future<Result<void>> refreshGitObjects() async => const Result.ok(null);
+}
+
+final class FakeConfig implements ConfigPort {
+  final entries = <String, String>{};
+
+  @override
+  Future<String?> get(String key) async => entries[key];
+
+  @override
+  Future<Result<void>> set(String key, String value) async {
+    if (key.contains(' ')) {
+      return const Result.err(
+        StorageFailure(code: 'FX-CONF-001', message: 'invalid key'),
+      );
+    }
+    entries[key] = value;
+    return const Result.ok(null);
+  }
+
+  @override
+  Future<Result<void>> unset(String key) async {
+    entries.remove(key);
+    return const Result.ok(null);
+  }
+
+  @override
+  Future<Map<String, String>> list() async => Map.of(entries);
+}
+
 // ── Harness ──────────────────────────────────────────────────────────────
 
 final class Harness {
@@ -139,6 +201,8 @@ final class Harness {
   final FakeSdkRepository sdks;
   final FakeRegistry registry;
   final FakeProjectStore projects;
+  final health = FakeHealth();
+  final config = FakeConfig();
   final out = <String>[];
   final err = <String>[];
 
@@ -147,6 +211,10 @@ final class Harness {
       sdkRepository: sdks,
       registry: registry,
       projectStore: projects,
+      storeHealth: health,
+      platformHealth: health,
+      cacheOps: FakeCacheOps(),
+      config: config,
       clock: () => DateTime.utc(2026, 7, 11),
     ),
     out: out.add,
@@ -294,6 +362,104 @@ void main() {
       h.out.clear();
       expect(await h.run(['current']), 0);
       expect(h.out.join('\n'), contains('stale'));
+    });
+  });
+
+  group('doctor', () {
+    test('healthy environment → sections rendered, exit 0', () async {
+      final h = Harness();
+      expect(await h.run(['doctor']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains(' Store'));
+      expect(body, contains(' Platform'));
+      expect(body, contains('0 warning(s), 0 error(s).'));
+    });
+
+    test('warnings keep exit 0; errors make it 15 (docs/04 §3.7)', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(
+          kind: 'orphan-version',
+          subject: '3.24.1',
+          ok: false,
+          detail: 'no project references it',
+        ),
+      ];
+      expect(await h.run(['doctor']), 0);
+      expect(h.out.join('\n'), contains('1 warning(s), 0 error(s).'));
+
+      h.health.storeProbes = [
+        const Probe(
+          kind: 'bare-repo',
+          subject: 'repo',
+          ok: false,
+          detail: 'fsck errors',
+          severity: Severity.error,
+        ),
+      ];
+      h.out.clear();
+      expect(await h.run(['doctor']), 15);
+    });
+
+    test('--path-fix prints only the snippet', () async {
+      final h = Harness();
+      h.health.platformProbes = [
+        const Probe(
+          kind: 'path',
+          subject: '/store/bin',
+          ok: false,
+          detail:
+              'not on PATH — shims inactive. Fix: '
+              'export PATH="/store/bin:\$PATH"',
+        ),
+      ];
+      expect(await h.run(['doctor', '--path-fix']), 0);
+      expect(h.out.single, 'export PATH="/store/bin:\$PATH"');
+    });
+  });
+
+  group('cache', () {
+    test('status renders the size table', () async {
+      final h = Harness();
+      expect(await h.run(['cache', 'status']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('Shared git objects'));
+      expect(body, contains('1.9 GB'));
+      expect(body, contains('version 3.22.2'));
+    });
+
+    test('refresh reports the refreshed registry', () async {
+      final h = Harness();
+      expect(await h.run(['cache', 'refresh']), 0);
+      expect(h.out.single, contains('registry refreshed — 2 releases'));
+    });
+
+    test('unknown subcommand → usage', () async {
+      final h = Harness();
+      expect(await h.run(['cache', 'explode']), 2);
+    });
+  });
+
+  group('config', () {
+    test('set / get / list / unset round-trip', () async {
+      final h = Harness();
+      expect(await h.run(['config', 'set', 'channel.default', 'stable']), 0);
+      h.out.clear();
+      expect(await h.run(['config', 'get', 'channel.default']), 0);
+      expect(h.out.single, 'stable');
+      h.out.clear();
+      expect(await h.run(['config', 'list']), 0);
+      expect(h.out.single, contains('channel.default  stable'));
+      h.out.clear();
+      expect(await h.run(['config', 'unset', 'channel.default']), 0);
+      h.out.clear();
+      expect(await h.run(['config', 'get', 'channel.default']), 0);
+      expect(h.out.single, '(unset)');
+    });
+
+    test('bad arity → usage', () async {
+      final h = Harness();
+      expect(await h.run(['config', 'set', 'only-key']), 2);
     });
   });
 

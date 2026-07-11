@@ -30,6 +30,11 @@ abstract interface class GitEngine {
   /// Shallow fetches are never used. Transient network errors are retried.
   Future<Result<void>> fetchTag(String tag);
 
+  /// Refreshes all remote refs (blobless — refs only, cheap). Backs
+  /// `flutterx cache refresh` (docs/04 §3.10). No-op success when the bare
+  /// repo does not exist yet.
+  Future<Result<void>> refreshRemote();
+
   /// Materializes [tag] as a detached worktree at [path] and returns the
   /// path. Blobs missing from the partial clone are fetched on checkout.
   Future<Result<String>> addWorktree(String tag, String path);

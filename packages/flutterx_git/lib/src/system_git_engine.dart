@@ -107,6 +107,20 @@ final class SystemGitEngine implements GitEngine {
   }
 
   @override
+  Future<Result<void>> refreshRemote() async {
+    if (!await _isBareRepo()) return const Result.ok(null);
+    return _git([
+      '-C',
+      bareRepoPath,
+      'fetch',
+      '--filter=blob:none',
+      '--no-write-fetch-head',
+      '--tags',
+      'origin',
+    ]);
+  }
+
+  @override
   Future<Result<String>> addWorktree(String tag, String path) async {
     final result = await _git([
       '-C',
