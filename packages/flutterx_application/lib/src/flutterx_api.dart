@@ -2,6 +2,7 @@ import 'package:flutterx_application/src/use_cases/install_sdk.dart';
 import 'package:flutterx_application/src/use_cases/list_sdks.dart';
 import 'package:flutterx_application/src/use_cases/manage_cache.dart';
 import 'package:flutterx_application/src/use_cases/manage_config.dart';
+import 'package:flutterx_application/src/use_cases/proxy_exec.dart';
 import 'package:flutterx_application/src/use_cases/remove_sdk.dart';
 import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
@@ -20,6 +21,7 @@ final class FlutterXApi {
     required PlatformHealthPort platformHealth,
     required CacheOps cacheOps,
     required ConfigPort config,
+    required PlatformPort platform,
     DateTime Function()? clock,
   }) : install = InstallSdk(sdkRepository, registry),
        remove = RemoveSdk(sdkRepository),
@@ -33,7 +35,9 @@ final class FlutterXApi {
        list = ListSdks(sdkRepository, registry),
        doctor = RunDoctor(storeHealth, platformHealth, projectStore),
        cache = ManageCache(cacheOps, registry),
-       config = ManageConfig(config);
+       config = ManageConfig(config),
+       proxy = ProxyExec(projectStore, platform),
+       shell = ShellExec(sdkRepository, platform);
 
   final InstallSdk install;
   final RemoveSdk remove;
@@ -43,4 +47,6 @@ final class FlutterXApi {
   final RunDoctor doctor;
   final ManageCache cache;
   final ManageConfig config;
+  final ProxyExec proxy;
+  final ShellExec shell;
 }

@@ -161,6 +161,14 @@ final class FileProjectStore implements ProjectStore {
   }
 
   @override
+  Future<String?> resolvedSdkPath(Project project) async {
+    final link = Link(p.join(project.rootPath, '.flutterx', 'sdk'));
+    if (!link.existsSync()) return null;
+    final target = link.targetSync();
+    return Directory(target).existsSync() ? target : null;
+  }
+
+  @override
   Future<Result<void>> linkSdk(Project project, InstalledSdk sdk) {
     return lock.withExclusive(() async {
       final linkPath = p.join(project.rootPath, '.flutterx', 'sdk');

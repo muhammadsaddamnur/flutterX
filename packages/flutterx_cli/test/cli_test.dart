@@ -124,6 +124,43 @@ final class FakeProjectStore implements ProjectStore {
   @override
   Future<Result<void>> linkSdk(Project project, InstalledSdk sdk) async =>
       const Result.ok(null);
+
+  String? sdkPath;
+
+  @override
+  Future<String?> resolvedSdkPath(Project project) async => sdkPath;
+}
+
+final class FakePlatform implements PlatformPort {
+  final execCalls = <(String, List<String>, Map<String, String>?)>[];
+  int exitCodeToReturn = 0;
+
+  @override
+  String get storeHome => '/store';
+
+  @override
+  TargetOs get os => TargetOs.macos;
+
+  @override
+  LinkMode get linkMode => LinkMode.symlink;
+
+  @override
+  Future<int> exec(
+    String executable,
+    List<String> args, {
+    bool inheritStdio = true,
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
+    execCalls.add((executable, args, environment));
+    return exitCodeToReturn;
+  }
+
+  @override
+  Future<Result<void>> createLink({
+    required String targetPath,
+    required String linkPath,
+  }) async => const Result.ok(null);
 }
 
 final class FakeHealth implements StoreHealthPort, PlatformHealthPort {
@@ -203,10 +240,11 @@ final class Harness {
   final FakeProjectStore projects;
   final health = FakeHealth();
   final config = FakeConfig();
+  final platform = FakePlatform();
   final out = <String>[];
   final err = <String>[];
 
-  Future<int> run(List<String> args) => FlutterXCli(
+  FlutterXCli cli() => FlutterXCli(
     api: FlutterXApi(
       sdkRepository: sdks,
       registry: registry,
@@ -215,12 +253,19 @@ final class Harness {
       platformHealth: health,
       cacheOps: FakeCacheOps(),
       config: config,
+      platform: platform,
       clock: () => DateTime.utc(2026, 7, 11),
     ),
     out: out.add,
     err: err.add,
     workingDirectory: '/work/app',
-  ).run([...args, '--no-color']);
+    environment: const {'SHELL': '/bin/zsh', 'PATH': '/usr/bin:/bin'},
+  );
+
+  Future<int> run(List<String> args) => cli().run([...args, '--no-color']);
+
+  /// Raw proxy commands must receive argv verbatim — no injected flags.
+  Future<int> runRaw(List<String> args) => cli().run(args);
 }
 
 void main() {
@@ -460,6 +505,77 @@ void main() {
     test('bad arity → usage', () async {
       final h = Harness();
       expect(await h.run(['config', 'set', 'only-key']), 2);
+    });
+  });
+
+  group('proxy commands (docs/04 §3.13)', () {
+    Harness resolved() {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.sdkPath = '/store/versions/3.22.2';
+      return h;
+    }
+
+    test('run passes argv through verbatim, exit code verbatim', () async {
+      final h = resolved();
+      h.platform.exitCodeToReturn = 42;
+      expect(await h.runRaw(['run', '--release', '-d', 'chrome']), 42);
+      final (exe, args, _) = h.platform.execCalls.single;
+      expect(exe, '/store/versions/3.22.2/bin/flutter');
+      expect(args, ['run', '--release', '-d', 'chrome']);
+    });
+
+    test('pub maps to flutter pub', () async {
+      final h = resolved();
+      expect(await h.runRaw(['pub', 'get', '--offline']), 0);
+      expect(h.platform.execCalls.single.$2, ['pub', 'get', '--offline']);
+    });
+
+    test('build and test proxy the same way', () async {
+      final h = resolved();
+      await h.runRaw(['build', 'apk']);
+      await h.runRaw(['test', 'test/foo_test.dart']);
+      expect(h.platform.execCalls[0].$2, ['build', 'apk']);
+      expect(h.platform.execCalls[1].$2, ['test', 'test/foo_test.dart']);
+    });
+
+    test('unresolved project → FX-STORE-008, exit 15, no exec', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      expect(await h.runRaw(['run']), 15);
+      expect(h.err.first, contains('FX-STORE-008'));
+      expect(h.platform.execCalls, isEmpty);
+    });
+  });
+
+  group('shell (docs/04 §3.11)', () {
+    test('one-shot command runs with the SDK first on PATH', () async {
+      final h = Harness();
+      await h.run(['install', '3.22.2']);
+      h.platform.execCalls.clear();
+      h.platform.exitCodeToReturn = 7;
+      expect(
+        await h.runRaw(['shell', '3.22.2', '--', 'flutter', 'test']),
+        7,
+        reason: 'exit code passthrough (contract class 20)',
+      );
+      final (exe, args, env) = h.platform.execCalls.single;
+      expect(exe, 'flutter');
+      expect(args, ['test']);
+      expect(env!['PATH'], startsWith('/store/versions/3.22.2/bin:'));
+    });
+
+    test('no command → interactive \$SHELL subshell', () async {
+      final h = Harness();
+      await h.run(['install', '3.22.2']);
+      h.platform.execCalls.clear();
+      expect(await h.runRaw(['shell', '3.22.2']), 0);
+      expect(h.platform.execCalls.single.$1, '/bin/zsh');
+    });
+
+    test('version not installed → exit 14', () async {
+      final h = Harness();
+      expect(await h.runRaw(['shell', '3.19.6']), 14);
     });
   });
 

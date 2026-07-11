@@ -47,6 +47,9 @@ final class StubProjects implements ProjectStore {
   @override
   Future<Result<void>> linkSdk(Project p, InstalledSdk s) async =>
       const Result.ok(null);
+
+  @override
+  Future<String?> resolvedSdkPath(Project project) async => null;
 }
 
 void main() {

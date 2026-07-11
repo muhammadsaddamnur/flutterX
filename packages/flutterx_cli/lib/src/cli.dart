@@ -3,6 +3,7 @@ import 'package:flutterx_application/flutterx_application.dart';
 import 'package:flutterx_cli/src/commands/commands.dart';
 import 'package:flutterx_cli/src/exit_codes.dart';
 import 'package:flutterx_cli/src/output/console.dart';
+import 'package:flutterx_domain/flutterx_domain.dart';
 
 /// The flutterx command-line interface (docs/04). Presentation only: maps
 /// argv → use-case parameters → rendered output; contains no domain logic
@@ -13,6 +14,7 @@ final class FlutterXCli {
     required void Function(String) out,
     required void Function(String) err,
     required this.workingDirectory,
+    this.environment = const {},
   }) : _out = out,
        _err = err;
 
@@ -21,9 +23,67 @@ final class FlutterXCli {
   final void Function(String) _err;
   final String workingDirectory;
 
+  /// Host environment (PATH, SHELL) for the shell command — injected for
+  /// testability.
+  final Map<String, String> environment;
+
   static const version = '0.1.0-dev';
 
+  /// Commands whose arguments pass through verbatim (docs/04 §3.13) —
+  /// they never go through the arg parser, so `flutterx run --release`
+  /// just works.
+  static const rawCommands = {'run', 'build', 'test', 'pub', 'shell'};
+
   Future<int> run(List<String> args) async {
+    if (args.isNotEmpty && rawCommands.contains(args.first)) {
+      return _runRaw(args.first, args.sublist(1));
+    }
+    return _runParsed(args);
+  }
+
+  Future<int> _runRaw(String command, List<String> rest) async {
+    final console = Console(write: _out, writeError: _err, color: false);
+
+    final Result<int> result;
+    switch (command) {
+      case 'run' || 'build' || 'test':
+        result = await api.proxy.execute(workingDirectory, 'flutter', [
+          command,
+          ...rest,
+        ]);
+      case 'pub':
+        result = await api.proxy.execute(workingDirectory, 'flutter', [
+          'pub',
+          ...rest,
+        ]);
+      case 'shell':
+        if (rest.isEmpty) {
+          console.writeError('✗ usage: flutterx shell <version> [-- <cmd …>]');
+          return ExitCodes.usage;
+        }
+        final separator = rest.indexOf('--');
+        result = await api.shell.execute(
+          rest.first,
+          command: separator == -1 ? const [] : rest.sublist(separator + 1),
+          shellExecutable: environment['SHELL'] ?? '/bin/sh',
+          currentPath: environment['PATH'] ?? '',
+          cwd: workingDirectory,
+        );
+      default:
+        throw StateError('unreachable: $command');
+    }
+
+    return switch (result) {
+      // Contract class 20: the child's exit code, verbatim (docs/04 §1.2).
+      Ok(:final value) => value,
+      Err(:final failure) => () {
+        console.failure(failure);
+        return ExitCodes.forFailure(failure);
+      }(),
+    };
+  }
+
+  Future<int> _runParsed(List<String> args) async {
     final parser = ArgParser(allowTrailingOptions: false)
       ..addFlag('help', abbr: 'h', negatable: false)
       ..addFlag('version', negatable: false)
@@ -83,9 +143,15 @@ final class FlutterXCli {
     for (final command in commandSpecs) {
       buffer.writeln('  ${command.name.padRight(10)} ${command.description}');
     }
-    buffer.write(
-      '\nGlobal flags: --json, --verbose, --no-color, --version, --help',
-    );
+    buffer
+      ..writeln(
+        '  run/build/test/pub  Proxy to the resolved SDK '
+        '(args pass through verbatim)',
+      )
+      ..writeln('  shell      Subshell with a chosen SDK first on PATH')
+      ..write(
+        '\nGlobal flags: --json, --verbose, --no-color, --version, --help',
+      );
     return buffer.toString();
   }
 }

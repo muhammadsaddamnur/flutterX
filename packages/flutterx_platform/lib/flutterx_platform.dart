@@ -4,5 +4,6 @@
 /// `src/` is private (docs/06 §1).
 library;
 
+export 'src/host_platform.dart';
 export 'src/platform_health.dart';
 export 'src/shim_installer.dart';

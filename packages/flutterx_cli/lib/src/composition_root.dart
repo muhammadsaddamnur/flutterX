@@ -70,6 +70,7 @@ Future<FlutterXCli> buildCli() async {
     platformHealth: PlatformHealth(shimInstaller: shimInstaller),
     cacheOps: StoreCacheOps(layout: layout, git: git, journal: journal),
     config: FileConfigStore(configFilePath: layout.configFile),
+    platform: HostPlatform(storeHome: storeHome),
   );
 
   return FlutterXCli(
@@ -77,6 +78,7 @@ Future<FlutterXCli> buildCli() async {
     out: stdout.writeln,
     err: stderr.writeln,
     workingDirectory: Directory.current.path,
+    environment: Platform.environment,
   );
 }
 

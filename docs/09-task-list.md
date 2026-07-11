@@ -84,9 +84,9 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.9 · Proxy commands
 
-- [ ] **T1.9.1** `ProxyExec` use case: resolve-via-lock then exec, full stdio passthrough, signal forwarding, exit-code passthrough (class 20) — [04 §3.13](04-cli-specification.md)
-- [ ] **T1.9.2** Commands `run`, `build`, `test`, `pub` — [04 §3.13](04-cli-specification.md)
-- [ ] **T1.9.3** `shell` command (subshell + one-shot `-- <cmd>` form) — [04 §3.11](04-cli-specification.md)
+- [x] **T1.9.1** `ProxyExec` use case: resolve-via-lock then exec, full stdio passthrough, signal forwarding, exit-code passthrough (class 20) — [04 §3.13](04-cli-specification.md) *(`HostPlatform` implements `PlatformPort.exec` with inherited stdio; fast path via `ProjectStore.resolvedSdkPath`)*
+- [x] **T1.9.2** Commands `run`, `build`, `test`, `pub` — [04 §3.13](04-cli-specification.md) *(raw dispatch — argv bypasses the arg parser entirely so `flutterx run --release` passes through verbatim)*
+- [x] **T1.9.3** `shell` command (subshell + one-shot `-- <cmd>` form) — [04 §3.11](04-cli-specification.md)
 
 ### M1.10 · FVM/Puro migration reading
 

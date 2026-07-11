@@ -35,4 +35,9 @@ abstract interface class ProjectStore {
   /// platform link mode) and registers the project in the store's project
   /// registry for GC reference counting (docs/05 §6.1).
   Future<Result<void>> linkSdk(Project project, InstalledSdk sdk);
+
+  /// The project's resolved SDK root — the `.flutterx/sdk` link's target —
+  /// or `null` when unresolved or dangling. The proxy commands' fast path
+  /// (docs/04 §3.13).
+  Future<String?> resolvedSdkPath(Project project);
 }
