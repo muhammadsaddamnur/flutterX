@@ -31,6 +31,7 @@ graph BT
   APP --> DOM
   GIT[flutterx_git] --> DOM
   STOR[flutterx_storage] --> DOM
+  STOR --> GIT
   REG[flutterx_registry] --> DOM
   PLAT[flutterx_platform] --> DOM
   CLI[flutterx_cli] --> APP

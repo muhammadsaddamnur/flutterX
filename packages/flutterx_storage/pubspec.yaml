@@ -9,6 +9,10 @@ environment:
 
 dependencies:
   flutterx_domain: ^0.1.0
+  flutterx_git: ^0.1.0
+  crypto: ^3.0.6
+  path: ^1.9.0
+  yaml: ^3.1.0
 
 dev_dependencies:
   lints: ^6.0.0

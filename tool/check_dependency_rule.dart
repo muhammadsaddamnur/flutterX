@@ -19,7 +19,8 @@ const allowedDeps = <String, Set<String>>{
   'flutterx_intelligence': {'flutterx_domain'},
   'flutterx_application': {'flutterx_domain', 'flutterx_intelligence'},
   'flutterx_git': {'flutterx_domain'},
-  'flutterx_storage': {'flutterx_domain'},
+  // storage composes GitEngine into its SdkRepository impl (docs/06 §5).
+  'flutterx_storage': {'flutterx_domain', 'flutterx_git'},
   'flutterx_registry': {'flutterx_domain'},
   'flutterx_platform': {'flutterx_domain'},
   'flutterx_cli': {

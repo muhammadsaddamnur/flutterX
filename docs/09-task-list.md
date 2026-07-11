@@ -39,14 +39,14 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.4 · `flutterx_storage` engine
 
-- [ ] **T1.4.1** Store layout init + `state.json` with `schemaVersion`; refuse-newer-schema guard — [05 §3, §10](05-storage-design.md)
-- [ ] **T1.4.2** `StoreLock` (advisory file lock; flock/LockFileEx behind one interface) — [05 §8](05-storage-design.md), [02 §7.1](02-system-architecture.md)
-- [ ] **T1.4.3** `DownloadManager`: resumable `.partial` downloads, sha256 verify, atomic rename — [05 §5.1](05-storage-design.md), [06 §6](06-package-design.md)
-- [ ] **T1.4.4** `ArtifactStore` (CAS): `ensure`, `linkInto` (hardlink→symlink→copy per probed link mode), `verify`, `unreferenced`; sharded lowercase-hex layout — [05 §5](05-storage-design.md)
-- [ ] **T1.4.5** `Journal`: begin/step/commit files, idempotent-step contract, 30-day pruning — [05 §7](05-storage-design.md)
-- [ ] **T1.4.6** `SdkRepository` impl composing `GitEngine` + CAS: the full `install()` provisioning algorithm incl. version stamp + `.flutterx-manifest.json` — [05 §4.1](05-storage-design.md)
-- [ ] **T1.4.7** `ProjectStore` impl: `readEvidence`, `writeLock`, `linkSdk` (project symlink/junction), project registry in `state.json` — [05 §6.1](05-storage-design.md)
-- [ ] **T1.4.8** Integration tests: install → verify layout; kill-mid-install → journal shows uncommitted — [06 §10](06-package-design.md)
+- [x] **T1.4.1** Store layout init + `state.json` with `schemaVersion`; refuse-newer-schema guard — [05 §3, §10](05-storage-design.md)
+- [x] **T1.4.2** `StoreLock` (advisory file lock; flock/LockFileEx behind one interface) — [05 §8](05-storage-design.md), [02 §7.1](02-system-architecture.md)
+- [x] **T1.4.3** `DownloadManager`: resumable `.partial` downloads, sha256 verify, atomic rename — [05 §5.1](05-storage-design.md), [06 §6](06-package-design.md)
+- [x] **T1.4.4** `ArtifactStore` (CAS): `ensure`, `linkInto` (hardlink→symlink→copy per probed link mode), `verify`, `unreferenced`; sharded lowercase-hex layout — [05 §5](05-storage-design.md) *(link mechanism injected as `CreateLink` — the platform-specific impl lands with `flutterx_platform`, M1.7/M1.11)*
+- [x] **T1.4.5** `Journal`: begin/step/commit files, idempotent-step contract, 30-day pruning — [05 §7](05-storage-design.md)
+- [x] **T1.4.6** `SdkRepository` impl composing `GitEngine` + CAS: the full `install()` provisioning algorithm incl. version stamp + `.flutterx-manifest.json` — [05 §4.1](05-storage-design.md) *(dep edge storage→git added to 06 §1 per 06 §5)*
+- [x] **T1.4.7** `ProjectStore` impl: `readEvidence`, `writeLock`, `linkSdk` (project symlink/junction), project registry in `state.json` — [05 §6.1](05-storage-design.md)
+- [x] **T1.4.8** Integration tests: install → verify layout; interrupted install (failure injection) → journal uncommitted → re-run rolls forward — [06 §10](06-package-design.md)
 
 ### M1.5 · `flutterx_registry` (basic)
 
