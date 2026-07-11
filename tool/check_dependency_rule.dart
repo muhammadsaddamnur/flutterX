@@ -61,9 +61,7 @@ void main() {
   final violations = <String>[];
 
   for (final pkgDir in packagesDir.listSync().whereType<Directory>()) {
-    final pkgName = pkgDir.uri.pathSegments
-        .where((s) => s.isNotEmpty)
-        .last;
+    final pkgName = pkgDir.uri.pathSegments.where((s) => s.isNotEmpty).last;
     final allowed = allowedDeps[pkgName];
     if (allowed == null) {
       violations.add(
@@ -76,10 +74,11 @@ void main() {
     for (final sub in const ['lib', 'bin']) {
       final dir = Directory('${pkgDir.path}/$sub');
       if (!dir.existsSync()) continue;
-      for (final file in dir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.dart'))) {
+      for (final file
+          in dir
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.dart'))) {
         checkFile(file, pkgName, allowed, violations);
       }
     }

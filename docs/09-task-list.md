@@ -21,12 +21,12 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.2 · `flutterx_domain` core
 
-- [ ] **T1.2.1** Value objects: `SemVer` (wrapping `pub_semver`), `VersionConstraintX`, `Channel { stable, beta, dev, master }`, `Confidence` — [06 §2.1](06-package-design.md)
-- [ ] **T1.2.2** Entities: `FlutterRelease`, `RegistrySnapshot`, `Project`, `InstalledSdk`, `Resolution`, `Reason`, `CandidateSet` — [06 §2.1](06-package-design.md), [03 §1.1](03-sdk-intelligence.md)
-- [ ] **T1.2.3** `Result<T>` + sealed `FxFailure` hierarchy with stable `code`/`message`/`nextActions`; start the failure catalogue file (`FX-GIT-*`, `FX-SOLVE-*`, `FX-STORE-*`) — [06 §2.1](06-package-design.md), [02 §9](02-system-architecture.md)
-- [ ] **T1.2.4** Ports: `SdkRepository`, `RegistryPort`, `ProjectStore`, `PlatformPort`, `Journal` — [06 §2.1](06-package-design.md)
-- [ ] **T1.2.5** Engine contracts (interfaces only, no impls yet): `ProjectScanner`, `VersionSolver`, `Rule`, `RecommendationEngine`, `UpgradeAdvisor`, `RepairPlanner` — [06 §2.1](06-package-design.md)
-- [ ] **T1.2.6** Unit tests: SemVer ordering laws, constraint algebra, exhaustive failure→exit-code mapping compiles — [06 §10](06-package-design.md)
+- [x] **T1.2.1** Value objects: `SemVer` (wrapping `pub_semver`), `VersionConstraintX`, `Channel { stable, beta, dev, master }`, `Confidence` — [06 §2.1](06-package-design.md)
+- [x] **T1.2.2** Entities: `FlutterRelease`, `RegistrySnapshot`, `Project`, `InstalledSdk`, `Resolution`, `Reason`, `CandidateSet` — [06 §2.1](06-package-design.md), [03 §1.1](03-sdk-intelligence.md)
+- [x] **T1.2.3** `Result<T>` + sealed `FxFailure` hierarchy with stable `code`/`message`/`nextActions`; start the failure catalogue file (`FX-GIT-*`, `FX-SOLVE-*`, `FX-STORE-*`) — [06 §2.1](06-package-design.md), [02 §9](02-system-architecture.md) *(Result implemented as sealed Ok/Err — exhaustive switch, per the open decision in 06 §2.1)*
+- [x] **T1.2.4** Ports: `SdkRepository`, `RegistryPort`, `ProjectStore`, `PlatformPort`, `Journal` — [06 §2.1](06-package-design.md)
+- [x] **T1.2.5** Engine contracts (interfaces only, no impls yet): `ProjectScanner`, `VersionSolver`, `Rule`, `RecommendationEngine`, `UpgradeAdvisor`, `RepairPlanner` — [06 §2.1](06-package-design.md)
+- [x] **T1.2.6** Unit tests: SemVer ordering laws, constraint algebra, exhaustive failure→exit-code mapping compiles — [06 §10](06-package-design.md)
 
 ### M1.3 · `flutterx_git` engine
 
