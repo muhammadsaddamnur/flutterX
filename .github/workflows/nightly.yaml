@@ -1,0 +1,21 @@
+# Nightly contract tests against real external endpoints (docs/07 risks:
+# Flutter infra format changes must be caught by us, not by users).
+name: Nightly
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  live-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart pub global activate melos
+      - name: Live endpoint contract tests
+        run: dart pub global run melos run test:live

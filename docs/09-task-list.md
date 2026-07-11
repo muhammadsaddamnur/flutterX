@@ -50,10 +50,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.5 · `flutterx_registry` (basic)
 
-- [ ] **T1.5.1** `ReleasesClient` for `releases_<os>.json` → `RegistrySnapshot` (incl. Flutter↔Dart mapping, retracted flag) — [03 §1](03-sdk-intelligence.md)
-- [ ] **T1.5.2** `SnapshotCache`: TTL 6h, etag, offline fallback with staleness warning — [03 §1.2](03-sdk-intelligence.md)
-- [ ] **T1.5.3** Bundled seed snapshot + build-time regeneration script — [03 §1.2](03-sdk-intelligence.md), [08 §7](08-contributing-guide.md)
-- [ ] **T1.5.4** Contract tests against recorded HTTP fixtures; nightly live-endpoint test — [07 Risks](07-development-roadmap.md)
+- [x] **T1.5.1** `ReleasesClient` for `releases_<os>.json` → `RegistrySnapshot` (incl. Flutter↔Dart mapping, retracted flag) — [03 §1](03-sdk-intelligence.md) *(retracted has no upstream source yet — curated overlay later; entries without a Dart mapping are skipped as unsolvable)*
+- [x] **T1.5.2** `SnapshotCache`: TTL 6h, etag, offline fallback with staleness warning — [03 §1.2](03-sdk-intelligence.md)
+- [x] **T1.5.3** Bundled seed snapshot + build-time regeneration script — [03 §1.2](03-sdk-intelligence.md), [08 §7](08-contributing-guide.md)
+- [x] **T1.5.4** Contract tests against recorded HTTP fixtures; nightly live-endpoint test — [07 Risks](07-development-roadmap.md) *(tag `live`, `melos run test:live`, nightly workflow)*
 
 ### M1.6 · `flutterx_cli` + first commands
 

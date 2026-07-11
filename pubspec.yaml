@@ -33,8 +33,11 @@ melos:
       run: dart run tool/check_dependency_rule.dart
       description: Enforce the inward-only dependency rule (docs/06 §1, docs/08 §1).
     test:
-      run: melos exec --dir-exists=test -- dart test --exclude-tags=integration
+      run: melos exec --dir-exists=test -- dart test --exclude-tags="integration||live"
       description: Unit and use-case tests in every package.
+    test:live:
+      run: melos exec --dir-exists=test/live -- dart test --tags=live test/live
+      description: Nightly contract tests against real external endpoints.
     test:integration:
       run: melos exec --dir-exists=test/integration -- dart test --tags=integration test/integration
       description: Integration tests (real git, filesystem, recorded HTTP). Convention — tagged @Tags(['integration']) AND under test/integration/.
