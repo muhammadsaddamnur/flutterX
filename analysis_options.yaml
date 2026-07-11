@@ -1,0 +1,20 @@
+# Repo-wide analysis config (docs/08 §3). Applies to every package via
+# directory hierarchy — packages must NOT add their own analysis_options.
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    - avoid_print
+    - prefer_final_locals
+    - unawaited_futures
+    - directives_ordering
+    - always_use_package_imports
+    - prefer_single_quotes
+    - unnecessary_lambdas
+    - throw_in_finally

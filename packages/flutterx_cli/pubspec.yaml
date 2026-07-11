@@ -1,0 +1,20 @@
+name: flutterx_cli
+description: "Presentation layer: command parsing, output rendering, exit codes, composition root (docs/04, docs/06 §9)."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutterx_application: ^0.1.0
+  flutterx_git: ^0.1.0
+  flutterx_storage: ^0.1.0
+  flutterx_registry: ^0.1.0
+  flutterx_platform: ^0.1.0
+  args: ^2.7.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

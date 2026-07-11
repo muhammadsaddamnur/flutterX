@@ -1,0 +1,40 @@
+name: flutterx_workspace
+description: FlutterX monorepo workspace root. See docs/ for the design documentation.
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+
+workspace:
+  - packages/flutterx_domain
+  - packages/flutterx_intelligence
+  - packages/flutterx_application
+  - packages/flutterx_git
+  - packages/flutterx_storage
+  - packages/flutterx_registry
+  - packages/flutterx_platform
+  - packages/flutterx_cli
+
+dev_dependencies:
+  melos: ^8.2.0
+
+# Melos configuration (melos 7+ reads config from the root pubspec).
+# The design docs refer to this as "melos.yaml" — with Dart pub workspaces
+# (Dart >=3.5) + melos >=7 the config lives here instead.
+melos:
+  scripts:
+    format:
+      run: dart format --set-exit-if-changed .
+      description: Verify formatting repo-wide.
+    analyze:
+      run: dart format --set-exit-if-changed . && dart analyze --fatal-infos . && dart run tool/check_dependency_rule.dart
+      description: Format check + static analysis + architecture dependency-rule check.
+    check:deps:
+      run: dart run tool/check_dependency_rule.dart
+      description: Enforce the inward-only dependency rule (docs/06 §1, docs/08 §1).
+    test:
+      run: melos exec --dir-exists=test -- dart test --exclude-tags=integration
+      description: Unit and use-case tests in every package.
+    test:integration:
+      run: melos exec --dir-exists=test -- dart test --tags=integration
+      description: Integration tests (real git, filesystem, recorded HTTP).

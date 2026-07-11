@@ -1,0 +1,15 @@
+name: flutterx_storage
+description: "Store on disk: layout, content-addressed artifacts, downloads, GC, journal, project registry (docs/05, docs/06 §6)."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutterx_domain: ^0.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

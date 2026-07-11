@@ -1,0 +1,16 @@
+name: flutterx_domain
+description: "Entities, value objects, failures, and the port/engine interfaces every FlutterX package implements or consumes (docs/06 §2)."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  pub_semver: ^2.2.0
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

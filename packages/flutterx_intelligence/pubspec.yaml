@@ -1,0 +1,15 @@
+name: flutterx_intelligence
+description: "Pure implementations of the SDK Intelligence engines: scanner, solver, rules, recommendation, dependency intelligence, upgrade advisor, repair planner (docs/03, docs/06 §3)."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutterx_domain: ^0.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
