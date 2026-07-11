@@ -1,0 +1,20 @@
+# Dart / pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+pubspec_overrides.yaml
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+*.iml
+.vscode/settings.json
+
+# OS
+.DS_Store
+
+# FlutterX local project state (never commit the store or sdk links)
+.flutterx/sdk
