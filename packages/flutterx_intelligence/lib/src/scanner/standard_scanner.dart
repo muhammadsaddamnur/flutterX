@@ -1,11 +1,29 @@
 import 'package:flutterx_domain/flutterx_domain.dart';
+import 'package:flutterx_intelligence/src/scanner/extractors/ci_workflow_extractor.dart';
 import 'package:flutterx_intelligence/src/scanner/extractors/flutterx_yaml_extractor.dart';
 import 'package:flutterx_intelligence/src/scanner/extractors/fvm_extractor.dart';
+import 'package:flutterx_intelligence/src/scanner/extractors/metadata_extractor.dart';
+import 'package:flutterx_intelligence/src/scanner/extractors/pubspec_extractor.dart';
+import 'package:flutterx_intelligence/src/scanner/extractors/pubspec_lock_extractor.dart';
 import 'package:flutterx_intelligence/src/scanner/extractors/puro_extractor.dart';
+import 'package:flutterx_intelligence/src/scanner/extractors/resolution_lock_extractor.dart';
 
-/// The pin-level extractors available since M1.10 (FlutterX intent +
-/// FVM/Puro migration). M2.1 appends pubspec, lockfile, `.metadata`, and
-/// CI extractors to the same pipeline.
+/// The full evidence pipeline (docs/03 §2.1 sources 1–9). Order matters
+/// only for project-kind classification (first non-unknown wins) — pin
+/// precedence is by [EvidenceSource.priority], not list position.
+/// `.metadata`'s explicit `project_type` outranks the pubspec heuristic.
+List<EvidenceExtractor> standardExtractors() => [
+  ResolutionLockExtractor(),
+  FlutterxYamlExtractor(),
+  FvmExtractor(),
+  PuroExtractor(),
+  MetadataExtractor(),
+  PubspecExtractor(),
+  PubspecLockExtractor(),
+  CiWorkflowExtractor(),
+];
+
+/// The pin-level subset that shipped with M1.10 (migration reading).
 List<EvidenceExtractor> standardPinExtractors() => [
   FlutterxYamlExtractor(),
   FvmExtractor(),
@@ -18,7 +36,7 @@ List<EvidenceExtractor> standardPinExtractors() => [
 /// never throws; problems surface as [ScanWarning]s (fail-soft).
 final class StandardProjectScanner implements ProjectScanner {
   StandardProjectScanner({List<EvidenceExtractor>? extractors})
-    : _extractors = extractors ?? standardPinExtractors();
+    : _extractors = extractors ?? standardExtractors();
 
   final List<EvidenceExtractor> _extractors;
 
@@ -28,6 +46,7 @@ final class StandardProjectScanner implements ProjectScanner {
     final hard = <ConstraintEvidence>[];
     final hints = <HintEvidence>[];
     final warnings = <ScanWarning>[];
+    var kind = ProjectKind.unknown;
 
     for (final extractor in _extractors) {
       if (!extractor.appliesTo(files)) continue;
@@ -36,6 +55,7 @@ final class StandardProjectScanner implements ProjectScanner {
       hard.addAll(result.hard);
       hints.addAll(result.hints);
       warnings.addAll(result.warnings);
+      if (kind == ProjectKind.unknown) kind = result.kind;
     }
 
     final merged = ProjectEvidence(
@@ -43,6 +63,7 @@ final class StandardProjectScanner implements ProjectScanner {
       hard: hard,
       hints: hints,
       warnings: warnings,
+      kind: kind,
     );
     if (!merged.hasConflictingPins) return merged;
 
@@ -57,6 +78,7 @@ final class StandardProjectScanner implements ProjectScanner {
       pins: pins,
       hard: hard,
       hints: hints,
+      kind: kind,
       warnings: [
         ...warnings,
         ScanWarning(

@@ -5,7 +5,12 @@
 /// `src/` is private (docs/06 §1).
 library;
 
+export 'src/scanner/extractors/ci_workflow_extractor.dart';
 export 'src/scanner/extractors/flutterx_yaml_extractor.dart';
 export 'src/scanner/extractors/fvm_extractor.dart';
+export 'src/scanner/extractors/metadata_extractor.dart';
+export 'src/scanner/extractors/pubspec_extractor.dart';
+export 'src/scanner/extractors/pubspec_lock_extractor.dart';
 export 'src/scanner/extractors/puro_extractor.dart';
+export 'src/scanner/extractors/resolution_lock_extractor.dart';
 export 'src/scanner/standard_scanner.dart';

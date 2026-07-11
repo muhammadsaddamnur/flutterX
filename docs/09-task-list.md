@@ -108,10 +108,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.1 · Full Project Scanner
 
-- [ ] **T2.1.1** Extractor pipeline (`EvidenceExtractor` interface, ordered, pluggable, never-throws) — [03 §2.3](03-sdk-intelligence.md)
-- [ ] **T2.1.2** Extractors: `flutterx.yaml`, `resolution.lock`, `pubspec.yaml` (env.sdk + env.flutter), `pubspec.lock`, `.metadata`, CI files (GitHub Actions, Codemagic) — [03 §2.1](03-sdk-intelligence.md)
-- [ ] **T2.1.3** `ProjectEvidence` merge + `ScanWarning`s (malformed YAML w/ line info, conflicting pins) + project-kind classification — [03 §2.2–2.3](03-sdk-intelligence.md)
-- [ ] **T2.1.4** Unit tests with real-world fixture files per extractor — [08 §2](08-contributing-guide.md)
+- [x] **T2.1.1** Extractor pipeline (`EvidenceExtractor` interface, ordered, pluggable, never-throws) — [03 §2.3](03-sdk-intelligence.md) *(landed early with M1.10)*
+- [x] **T2.1.2** Extractors: `flutterx.yaml`, `resolution.lock`, `pubspec.yaml` (env.sdk + env.flutter), `pubspec.lock` (aggregate `sdks.dart`), `.metadata`, CI files (GitHub Actions, Codemagic) — [03 §2.1](03-sdk-intelligence.md) *(reality note: `.metadata` records a framework revision, not a version — the scanner extracts `project_type`; the revision→version join needs the registry and can enrich hints at the application layer later)*
+- [x] **T2.1.3** `ProjectEvidence` merge + `ScanWarning`s (malformed YAML, conflicting pins) + project-kind classification — [03 §2.2–2.3](03-sdk-intelligence.md) *(kind: `.metadata` `project_type` outranks the pubspec heuristic; `lib/main.dart` presence marker added to evidence collection)*
+- [x] **T2.1.4** Unit tests with real-world fixture files per extractor — [08 §2](08-contributing-guide.md) *(`yaml` added to intelligence deps — deliberate exception to 08 §3, pure parser, no I/O)*
 
 ### M2.2 · Version Solver
 

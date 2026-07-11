@@ -77,6 +77,12 @@ final class FileProjectStore implements ProjectStore {
         files[name] = await file.readAsString();
       }
     }
+    // lib/main.dart presence marker for kind classification (docs/03
+    // §2.3) — the scanner needs existence, not content.
+    if (File(p.join(project.rootPath, 'lib', 'main.dart')).existsSync()) {
+      files['lib/main.dart'] = '';
+    }
+
     // CI workflows: every YAML under .github/workflows (docs/03 §2.1 #9).
     final workflows = Directory(
       p.join(project.rootPath, '.github', 'workflows'),
