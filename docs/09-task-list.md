@@ -90,8 +90,8 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M1.10 · FVM/Puro migration reading
 
-- [ ] **T1.10.1** Evidence extractors for `.fvmrc` / `.fvm/fvm_config.json` / `.puro.json` (pin-level only) — [03 §2.1](03-sdk-intelligence.md)
-- [ ] **T1.10.2** `use`/`current` honor migrated pins + conflict warning when multiple pins disagree — [03 §2.3](03-sdk-intelligence.md)
+- [x] **T1.10.1** Evidence extractors for `.fvmrc` / `.fvm/fvm_config.json` / `.puro.json` (pin-level only) — [03 §2.1](03-sdk-intelligence.md) *(first `flutterx_intelligence` code: `StandardProjectScanner` pipeline + `FlutterxYamlExtractor`; puro env names that aren't versions warn instead of migrating; no new deps — all M1.10 formats parse without a YAML package)*
+- [x] **T1.10.2** `use`/`current` honor migrated pins + conflict warning when multiple pins disagree — [03 §2.3](03-sdk-intelligence.md) *(bare `flutterx use` adopts the effective pin, `resolvedBy: migrate`; `current` advertises adoptable pins)*
 
 ### M1.11 · Windows parity pass
 

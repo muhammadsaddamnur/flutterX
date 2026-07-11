@@ -377,6 +377,28 @@ void main() {
       expect(await h.run(['use', '3.22.2']), 15);
       expect(h.err.first, contains('FX-STORE-005'));
     });
+
+    test('bare `use` adopts an FVM pin (migration, T1.10.2)', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.evidence = EvidenceFiles(
+        files: const {'.fvmrc': '{"flutter": "3.22.2"}'},
+      );
+      expect(await h.run(['use']), 0);
+      expect(h.projects.pinnedVersion, '3.22.2');
+      expect(h.projects.lock!.resolvedBy, ResolvedBy.migrate);
+      expect(
+        h.projects.lock!.reasons.first.text,
+        contains('pin adopted from .fvmrc'),
+      );
+    });
+
+    test('bare `use` without any pin → FX-STORE-009', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      expect(await h.run(['use']), 15);
+      expect(h.err.first, contains('FX-STORE-009'));
+    });
   });
 
   group('current', () {
@@ -395,6 +417,34 @@ void main() {
       final body = h.out.join('\n');
       expect(body, contains('Flutter : 3.22.2 (stable) — via use'));
       expect(body, contains('Lock    : fresh'));
+    });
+
+    test('unresolved project with an FVM pin advertises adoption', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.evidence = EvidenceFiles(
+        files: const {'.fvmrc': '{"flutter": "3.22.2"}'},
+      );
+      expect(await h.run(['current']), 0);
+      expect(
+        h.out.join('\n'),
+        contains('pin found in .fvmrc: 3.22.2 — run `flutterx use`'),
+      );
+    });
+
+    test('conflicting pins are always warned (docs/03 §2.3)', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.evidence = EvidenceFiles(
+        files: const {
+          'flutterx.yaml': 'flutter: 3.24.1',
+          '.fvmrc': '{"flutter": "3.19.0"}',
+        },
+      );
+      expect(await h.run(['current']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('conflicting-pins'));
+      expect(body, contains('pin found in flutterx.yaml: 3.24.1'));
     });
 
     test('evidence drift flips the lock to stale', () async {

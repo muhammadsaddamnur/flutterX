@@ -209,19 +209,21 @@ final commandSpecs = <CommandSpec>[
   ),
   CommandSpec(
     name: 'use',
-    description: 'Pin the current project to an SDK version.',
+    description:
+        'Pin the current project to an SDK version '
+        '(no argument: adopt an existing FVM/Puro/flutterx pin).',
     configure: (parser) => parser
       ..addOption('policy', help: 'Track a channel instead of an exact pin.')
       ..addFlag('no-install', negatable: false),
     run: (ctx) async {
       final rest = ctx.args.rest;
-      if (rest.length != 1) {
-        ctx.console.writeError('✗ usage: flutterx use <version>');
+      if (rest.length > 1) {
+        ctx.console.writeError('✗ usage: flutterx use [version]');
         return ExitCodes.usage;
       }
       final result = await ctx.api.use.execute(
         ctx.workingDirectory,
-        rest.single,
+        rest.isEmpty ? null : rest.single,
         policyChannel: ctx.args['policy'] as String?,
         noInstall: ctx.args['no-install'] as bool,
       );
@@ -480,8 +482,20 @@ final commandSpecs = <CommandSpec>[
         return ExitCodes.ok;
       }
       ctx.console.write('Project : ${info.project!.rootPath}');
+      for (final warning in info.warnings) {
+        ctx.console.warn('$warning');
+      }
       if (!info.resolved) {
-        ctx.console.info('no SDK resolved yet — run `flutterx use <version>`');
+        if (info.migratedPin != null) {
+          ctx.console.info(
+            'pin found in ${info.migratedPin!.origin}: '
+            '${info.migratedPin!.version} — run `flutterx use` to adopt it',
+          );
+        } else {
+          ctx.console.info(
+            'no SDK resolved yet — run `flutterx use <version>`',
+          );
+        }
         return ExitCodes.ok;
       }
       final r = info.resolution!;

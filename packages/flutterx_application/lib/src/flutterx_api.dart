@@ -8,6 +8,7 @@ import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
 import 'package:flutterx_application/src/use_cases/use_sdk.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
+import 'package:flutterx_intelligence/flutterx_intelligence.dart';
 
 /// Façade over all use cases (docs/06 §4) — the API the CLI (and a future
 /// daemon or IDE plugin) consumes. Ports are injected; the composition
@@ -22,6 +23,7 @@ final class FlutterXApi {
     required CacheOps cacheOps,
     required ConfigPort config,
     required PlatformPort platform,
+    ProjectScanner? scanner,
     DateTime Function()? clock,
   }) : install = InstallSdk(sdkRepository, registry),
        remove = RemoveSdk(sdkRepository),
@@ -29,9 +31,10 @@ final class FlutterXApi {
          sdkRepository,
          registry,
          projectStore,
+         scanner ?? StandardProjectScanner(),
          clock ?? DateTime.now,
        ),
-       current = ShowCurrent(projectStore),
+       current = ShowCurrent(projectStore, scanner ?? StandardProjectScanner()),
        list = ListSdks(sdkRepository, registry),
        doctor = RunDoctor(storeHealth, platformHealth, projectStore),
        cache = ManageCache(cacheOps, registry),
