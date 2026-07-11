@@ -14,8 +14,8 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 - [x] **T0.2** Create `melos.yaml` + the 8 package skeletons (`domain`, `intelligence`, `application`, `git`, `storage`, `registry`, `platform`, `cli`), each with the `lib/<name>.dart` barrel + `lib/src/` + `test/` convention — [06 §1](06-package-design.md) *(note: melos ≥7 on Dart pub workspaces — config lives in root `pubspec.yaml`, not `melos.yaml`)*
 - [x] **T0.3** Shared `analysis_options.yaml`: `lints/recommended` + `prefer_final_locals`, `unawaited_futures`, `directives_ordering`, no-`print` — [08 §3](08-contributing-guide.md)
 - [x] **T0.4** Write `tool/` custom lints: dependency-rule check (inward-only imports), no-`dart:io`-in-`intelligence`, no cross-package `src/` imports — [06 §1](06-package-design.md), [08 §1](08-contributing-guide.md)
-- [ ] **T0.5** CI skeleton (GitHub Actions): format, analyze, dependency-rule lint, unit tests on macOS/Linux/Windows matrix; commit-lint for Conventional Commits — [08 §5–6](08-contributing-guide.md)
-- [ ] **T0.6** Branch protection on `main`, rebase-merge only, required checks — [08 §6](08-contributing-guide.md)
+- [x] **T0.5** CI skeleton (GitHub Actions): format, analyze, dependency-rule lint, unit tests on macOS/Linux/Windows matrix; commit-lint for Conventional Commits — [08 §5–6](08-contributing-guide.md) *(integration-test step deferred to T1.3.6 — no tagged suites exist yet)*
+- [ ] **T0.6** Branch protection on `main`, rebase-merge only, required checks — [08 §6](08-contributing-guide.md) *(blocked: requires the GitHub remote to exist; apply in repo settings after first push)*
 
 ## Phase 1 — MVP (v0.1 → v0.5)
 
