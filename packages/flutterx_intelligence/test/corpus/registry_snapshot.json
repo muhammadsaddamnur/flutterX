@@ -1,0 +1,12 @@
+{"releases": [
+  {"version": "3.24.1", "channel": "stable", "dart": "3.5.1", "releasedAt": "2026-06-20"},
+  {"version": "3.24.0", "channel": "stable", "dart": "3.5.0", "releasedAt": "2026-05-15"},
+  {"version": "3.22.3", "channel": "stable", "dart": "3.4.4", "releasedAt": "2026-04-10", "retracted": true},
+  {"version": "3.22.2", "channel": "stable", "dart": "3.4.3", "releasedAt": "2026-03-06"},
+  {"version": "3.22.1", "channel": "stable", "dart": "3.4.1", "releasedAt": "2026-02-14"},
+  {"version": "3.19.6", "channel": "stable", "dart": "3.3.4", "releasedAt": "2025-04-17"},
+  {"version": "3.16.9", "channel": "stable", "dart": "3.2.6", "releasedAt": "2024-02-07"},
+  {"version": "3.10.6", "channel": "stable", "dart": "3.0.6", "releasedAt": "2023-07-12"},
+  {"version": "2.10.5", "channel": "stable", "dart": "2.16.2", "releasedAt": "2022-04-18"},
+  {"version": "3.27.0-0.1.pre", "channel": "beta", "dart": "3.7.0-1.0.beta", "releasedAt": "2026-07-01"}
+]}

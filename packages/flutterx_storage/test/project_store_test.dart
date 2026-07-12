@@ -1,3 +1,8 @@
+@TestOn('!windows')
+// Symlink-based: Windows junction support (and these tests'
+// junction-aware equivalents) land with M1.11 (docs/09).
+library;
+
 import 'dart:io';
 
 import 'package:flutterx_domain/flutterx_domain.dart';

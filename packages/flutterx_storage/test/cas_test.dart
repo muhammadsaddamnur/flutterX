@@ -59,11 +59,18 @@ void main() {
   final engineBytes = utf8.encode('engine artifact payload ' * 100);
   final engineSha = shaOf(engineBytes);
 
+  // Portable link stand-in: symlink on POSIX, copy on Windows — copy is a
+  // legitimate LinkMode fallback (docs/05 §5.1), and these tests assert
+  // content, not mechanism.
   Future<Result<void>> symlinkCreate({
     required String targetPath,
     required String linkPath,
   }) async {
-    await Link(linkPath).create(targetPath);
+    if (Platform.isWindows) {
+      await File(targetPath).copy(linkPath);
+    } else {
+      await Link(linkPath).create(targetPath);
+    }
     return const Result.ok(null);
   }
 
