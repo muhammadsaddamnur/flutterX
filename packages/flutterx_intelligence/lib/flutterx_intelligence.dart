@@ -5,6 +5,7 @@
 /// `src/` is private (docs/06 §1).
 library;
 
+export 'src/recommend/recommendation_engine.dart';
 export 'src/rules/builtin_rules.dart';
 export 'src/rules/policy.dart';
 export 'src/rules/rule_engine.dart';

@@ -129,10 +129,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.4 · Recommendation Engine
 
-- [ ] **T2.4.1** Scoring signals per the weight table, each contribution recorded as `Reason(text, delta)` — [03 §5.1](03-sdk-intelligence.md)
-- [ ] **T2.4.2** Confidence computation + behavior gates (high/medium/low, TTY vs CI) — [03 §5.2](03-sdk-intelligence.md)
-- [ ] **T2.4.3** `--explain` rendering (golden-tested) + deterministic tiebreak — [03 §5.3](03-sdk-intelligence.md)
-- [ ] **T2.4.4** Config validation for weight overrides at load time — [03 §5](03-sdk-intelligence.md)
+- [x] **T2.4.1** Scoring signals per the weight table, each contribution recorded as `Reason(text, delta)` — [03 §5.1](03-sdk-intelligence.md) *(incompatible packages contribute 0 with the why still shown)*
+- [x] **T2.4.2** Confidence computation + behavior gates (high/medium/low, TTY vs CI) — [03 §5.2](03-sdk-intelligence.md) *(engine computes confidence; TTY/CI behavior gates land with `resolve`, M2.5)*
+- [x] **T2.4.3** `--explain` rendering (golden-tested) + deterministic tiebreak — [03 §5.3](03-sdk-intelligence.md) *(pure `explainRecommendation` formatter; version-descending tiebreak)*
+- [x] **T2.4.4** Config validation for weight overrides at load time — [03 §5](03-sdk-intelligence.md) *(`recommend.weights.*` keys, FX-CONF-002)*
 
 ### M2.5 · `resolve` / `recommend` commands
 
