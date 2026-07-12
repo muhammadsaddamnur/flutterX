@@ -6,6 +6,7 @@
 library;
 
 export 'src/http_registry.dart';
+export 'src/pub_meta_client.dart';
 export 'src/releases_client.dart';
 export 'src/releases_index.dart';
 export 'src/snapshot_cache.dart';

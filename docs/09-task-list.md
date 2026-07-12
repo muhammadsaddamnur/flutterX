@@ -143,10 +143,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.6 · Dependency Intelligence (fast mode)
 
-- [ ] **T2.6.1** `PubMetaClient` + pub metadata cache under `cache/registry/pub/` — [03 §6.1](03-sdk-intelligence.md), [05 §3](05-storage-design.md)
-- [ ] **T2.6.2** Fast-mode compatibility checker (lockfile × candidate SDK; `?` for git/path deps) — [03 §6.1–6.2](03-sdk-intelligence.md)
-- [ ] **T2.6.3** Compatibility matrix rendering for `recommend --matrix` — [03 §6.2](03-sdk-intelligence.md)
-- [ ] **T2.6.4** Wire compatibility score into Recommendation signals — [03 §5.1](03-sdk-intelligence.md)
+- [x] **T2.6.1** `PubMetaClient` + pub metadata cache under `cache/registry/pub/` — [03 §6.1](03-sdk-intelligence.md), [05 §3](05-storage-design.md) *(published (name,version) is immutable → forever-cache, offline after first resolve)*
+- [x] **T2.6.2** Fast-mode compatibility checker (lockfile × candidate SDK; `?` for git/path deps) — [03 §6.1–6.2](03-sdk-intelligence.md) *(pure: lockfile parsing + check in intelligence; metadata fetching application-side per 06 §3)*
+- [x] **T2.6.3** Compatibility matrix rendering for `recommend --matrix` — [03 §6.2](03-sdk-intelligence.md)
+- [x] **T2.6.4** Wire compatibility score into Recommendation signals — [03 §5.1](03-sdk-intelligence.md) *(fixture lesson: files named pubspec.yaml/lock in test dirs get adopted by pub — renamed to app_pubspec.*)*
 
 ### M2.7 · Repair Engine (first half)
 

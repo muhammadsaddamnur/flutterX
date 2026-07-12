@@ -56,6 +56,7 @@ Future<FlutterXCli> buildCli() async {
     registry: HttpRegistry(
       client: ReleasesClient(),
       cache: SnapshotCache(cacheDir: layout.registryCacheDir),
+      pubMeta: PubMetaClient(cacheDir: p.join(layout.registryCacheDir, 'pub')),
       os: os,
       preferredArch: Abi.current().toString().endsWith('arm64')
           ? 'arm64'

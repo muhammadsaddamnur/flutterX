@@ -84,12 +84,14 @@ Future<int> runResolvePipeline(
 }) async {
   var acceptLow = apply && ctx.args['accept-low'] as bool;
   final refresh = apply && ctx.args['refresh'] as bool;
+  final matrix = !apply && ctx.args['matrix'] as bool;
 
   var result = await ctx.api.resolve.execute(
     ctx.workingDirectory,
     apply: apply,
     acceptLow: acceptLow,
     refresh: refresh,
+    matrix: matrix,
   );
 
   // TTY consent path: ask once, then re-run accepting low confidence.
@@ -168,6 +170,22 @@ Future<int> runResolvePipeline(
             'alternative: ${alt.release.version} (score ${alt.score})',
           );
         }
+      }
+      if (value.matrix case final m?) {
+        ctx.console.write('');
+        ctx.console.table([
+          ['PACKAGE', for (final v in m.candidates) '$v'],
+          for (final row in m.rows.entries)
+            [
+              row.key,
+              for (final status in row.value)
+                switch (status) {
+                  PackageCompatibility.compatible => '✓',
+                  PackageCompatibility.incompatible => '✗',
+                  PackageCompatibility.unknown => '?',
+                },
+            ],
+        ]);
       }
       if (apply) {
         ctx.console.info('lock written — commit .flutterx/resolution.lock');
@@ -373,7 +391,9 @@ final commandSpecs = <CommandSpec>[
   CommandSpec(
     name: 'recommend',
     description: 'Show the SDK recommendation without applying it.',
-    configure: (parser) => parser..addFlag('explain', negatable: false),
+    configure: (parser) => parser
+      ..addFlag('explain', negatable: false)
+      ..addFlag('matrix', negatable: false),
     run: (ctx) => runResolvePipeline(ctx, apply: false),
   ),
   CommandSpec(

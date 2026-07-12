@@ -1,4 +1,5 @@
 import 'package:flutterx_domain/flutterx_domain.dart';
+import 'package:flutterx_registry/src/pub_meta_client.dart';
 import 'package:flutterx_registry/src/releases_client.dart';
 import 'package:flutterx_registry/src/releases_index.dart';
 import 'package:flutterx_registry/src/seed_snapshot.g.dart' as seed;
@@ -18,6 +19,7 @@ final class HttpRegistry implements RegistryPort {
     required this.cache,
     required this.os,
     required this.preferredArch,
+    this.pubMeta,
     this.ttl = const Duration(hours: 6),
     DateTime Function()? clock,
     Map<String, String>? seedBodies,
@@ -26,6 +28,10 @@ final class HttpRegistry implements RegistryPort {
 
   final ReleasesClient client;
   final SnapshotCache cache;
+
+  /// Pub.dev metadata for Dependency Intelligence (M2.6); optional so
+  /// registry-only contexts stay light.
+  final PubMetaClient? pubMeta;
   final TargetOs os;
 
   /// Host CPU arch (`arm64`/`x64`) — picks among per-arch index entries.
@@ -67,9 +73,18 @@ final class HttpRegistry implements RegistryPort {
 
   @override
   Future<Result<PackageMeta>> packageMeta(String name, SemVer version) {
-    // Dependency Intelligence fast mode lands in M2.6 (docs/09 T2.6.1);
-    // nothing in Phase 1 may call this.
-    throw UnimplementedError('packageMeta arrives with M2.6');
+    final client = pubMeta;
+    if (client == null) {
+      return Future.value(
+        const Result.err(
+          NetworkFailure(
+            code: 'FX-REG-002',
+            message: 'pub metadata client not configured',
+          ),
+        ),
+      );
+    }
+    return client.fetch(name, version);
   }
 
   RegistrySnapshot _parse(String body, DateTime fetchedAt, String source) =>

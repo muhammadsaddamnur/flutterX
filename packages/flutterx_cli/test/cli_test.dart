@@ -85,9 +85,18 @@ final class FakeRegistry implements RegistryPort {
     );
   }
 
+  /// name@version → meta; misses answer FX-REG-002 (→ unverified).
+  final metas = <String, PackageMeta>{};
+
   @override
-  Future<Result<PackageMeta>> packageMeta(String name, SemVer version) =>
-      throw UnimplementedError();
+  Future<Result<PackageMeta>> packageMeta(String name, SemVer version) async {
+    final meta = metas['$name@$version'];
+    return meta == null
+        ? const Result.err(
+            NetworkFailure(code: 'FX-REG-002', message: 'no meta'),
+          )
+        : Result.ok(meta);
+  }
 }
 
 final class FakeProjectStore implements ProjectStore {
@@ -538,6 +547,44 @@ void main() {
       expect(await h.run(['resolve']), 0);
       expect(h.out.join('\n'), contains('Proceed anyway?'));
       expect(h.projects.lock, isNotNull);
+    });
+
+    test('lockfile compatibility feeds the score; --matrix renders the grid '
+        '(M2.6)', () async {
+      const lockfile = '''
+packages:
+  freezed:
+    dependency: "direct main"
+    description:
+      name: freezed
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.7"
+sdks:
+  dart: ">=3.3.0 <4.0.0"
+''';
+      final h = projectWith(const {
+        'pubspec.yaml': 'name: app\nenvironment:\n  sdk: ">=3.3.0 <4.0.0"\n',
+        'pubspec.lock': lockfile,
+      });
+      // freezed needs Dart <3.5 → incompatible with 3.24.1 (Dart 3.5.1).
+      h.registry.metas['freezed@2.4.7'] = PackageMeta(
+        name: 'freezed',
+        version: SemVer.parse('2.4.7'),
+        dartConstraint: VersionConstraintX.parse('>=3.0.0 <3.5.0'),
+      );
+
+      expect(await h.run(['recommend', '--matrix']), 0);
+      final body = h.out.join('\n');
+      expect(
+        body,
+        contains('Recommended Flutter 3.22.2'),
+        reason: 'compatibility (+40) pulls the older-but-compatible ahead',
+      );
+      expect(body, contains('PACKAGE'));
+      expect(body, contains('freezed'));
+      expect(body, contains('✓'));
+      expect(body, contains('✗'));
     });
 
     test('an existing pin decides with high confidence', () async {

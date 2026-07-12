@@ -14,8 +14,8 @@ void main() {
   EvidenceFiles project({Map<String, String> extra = const {}}) =>
       EvidenceFiles(
         files: {
-          'pubspec.yaml': fixture('pubspec.yaml'),
-          'pubspec.lock': fixture('pubspec.lock'),
+          'pubspec.yaml': fixture('app_pubspec.yaml'),
+          'pubspec.lock': fixture('app_pubspec.lock'),
           '.metadata': fixture('metadata'),
           '.github/workflows/build.yml': fixture('build.yml'),
           'lib/main.dart': '',
@@ -71,7 +71,10 @@ void main() {
     test('flutter dep + lib/main.dart → app', () {
       final evidence = scanner.scan(
         EvidenceFiles(
-          files: {'pubspec.yaml': fixture('pubspec.yaml'), 'lib/main.dart': ''},
+          files: {
+            'pubspec.yaml': fixture('app_pubspec.yaml'),
+            'lib/main.dart': '',
+          },
         ),
       );
       expect(evidence.kind, ProjectKind.app);
@@ -79,7 +82,7 @@ void main() {
 
     test('flutter dep without an entry point → package', () {
       final evidence = scanner.scan(
-        EvidenceFiles(files: {'pubspec.yaml': fixture('pubspec.yaml')}),
+        EvidenceFiles(files: {'pubspec.yaml': fixture('app_pubspec.yaml')}),
       );
       expect(evidence.kind, ProjectKind.package);
     });

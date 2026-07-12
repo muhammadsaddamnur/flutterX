@@ -17,6 +17,7 @@ export 'src/entities/diagnosis.dart';
 export 'src/entities/evidence.dart';
 export 'src/entities/flutter_release.dart';
 export 'src/entities/installed_sdk.dart';
+export 'src/entities/locked_package.dart';
 export 'src/entities/package_meta.dart';
 export 'src/entities/project.dart';
 export 'src/entities/recommendation.dart';

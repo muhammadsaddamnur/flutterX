@@ -26,6 +26,10 @@ final class ResolveOutcome {
   final int candidatesSolved;
   final int candidatesAllowed;
 
+  /// Package × candidate view, set when `--matrix` was requested
+  /// (docs/03 §6.2).
+  CompatibilityMatrix? matrix;
+
   /// The `--explain` breakdown (docs/03 §5.3) — exposed here so the CLI
   /// never needs to import the intelligence package directly.
   String explain() => explainRecommendation(recommendation);
@@ -66,6 +70,7 @@ final class ResolveProject {
     bool apply = true,
     bool acceptLow = false,
     bool refresh = false,
+    bool matrix = false,
   }) async {
     final project = await _projects.findProject(cwd);
     if (project == null) {
@@ -124,7 +129,29 @@ final class ResolveProject {
       ruleModifiers = ruled.modifiers;
     }
 
-    // 5. Rank.
+    // 5. Dependency Intelligence fast mode (docs/03 §6.1): metadata is
+    //    per package-version (cache-first, offline-tolerant), then the
+    //    per-candidate check is pure. Failures mean unverified, never
+    //    blocked.
+    final lockedPackages = parseLockedPackages(files['pubspec.lock'] ?? '');
+    final metas = <String, PackageMeta?>{};
+    for (final package in lockedPackages.where((p) => p.hosted)) {
+      final meta = await _registry.packageMeta(package.name, package.version);
+      metas['${package.name}@${package.version}'] = meta.valueOrNull;
+    }
+    PackageMeta? metaFor(LockedPackage package) =>
+        metas['${package.name}@${package.version}'];
+    final compatibility = <SemVer, DependencyCompatibility>{
+      if (lockedPackages.isNotEmpty)
+        for (final candidate in allowed.candidates)
+          candidate.version: checkCompatibility(
+            candidate,
+            lockedPackages,
+            metaFor,
+          ),
+    };
+
+    // 6. Rank.
     final installed = await _sdks.installed();
     final recommendation = StandardRecommendationEngine().rank(
       allowed,
@@ -132,6 +159,7 @@ final class ResolveProject {
         evidence: evidence,
         installed: {for (final sdk in installed) sdk.release.version},
         ruleModifiers: ruleModifiers,
+        compatibility: compatibility,
         now: now,
       ),
     );
@@ -148,14 +176,30 @@ final class ResolveProject {
       );
     }
 
-    ResolveOutcome outcome({Resolution? resolution}) => ResolveOutcome(
-      recommendation: recommendation,
-      resolution: resolution,
-      warnings: warnings,
-      trace: solved.trace,
-      candidatesSolved: solved.candidates.length,
-      candidatesAllowed: allowed.candidates.length,
-    );
+    ResolveOutcome outcome({Resolution? resolution}) {
+      final result = ResolveOutcome(
+        recommendation: recommendation,
+        resolution: resolution,
+        warnings: warnings,
+        trace: solved.trace,
+        candidatesSolved: solved.candidates.length,
+        candidatesAllowed: allowed.candidates.length,
+      );
+      if (matrix && lockedPackages.isNotEmpty) {
+        // The matrix compares the chosen release and its alternatives
+        // (docs/03 §6.2).
+        result.matrix = buildCompatibilityMatrix(
+          [
+            recommendation.chosen.release,
+            for (final alt in recommendation.alternatives) alt.release,
+          ],
+          lockedPackages,
+          metaFor,
+        );
+      }
+      return result;
+    }
+
     if (!apply) return Result.ok(outcome());
 
     // 7. Apply: provision + lock + link (docs/03 §7 flowchart tail).

@@ -5,6 +5,12 @@
 /// `src/` is private (docs/06 §1).
 library;
 
+// Intelligence types that surface through this package's API
+// (ResolveOutcome.matrix) — re-exported so the CLI never imports the
+// intelligence package directly (docs/06 §1 dependency rule).
+export 'package:flutterx_intelligence/flutterx_intelligence.dart'
+    show CompatibilityMatrix, PackageCompatibility;
+
 export 'src/flutterx_api.dart';
 export 'src/use_cases/install_sdk.dart';
 export 'src/use_cases/list_sdks.dart';
