@@ -4,6 +4,7 @@ import 'package:flutterx_application/src/use_cases/manage_cache.dart';
 import 'package:flutterx_application/src/use_cases/manage_config.dart';
 import 'package:flutterx_application/src/use_cases/proxy_exec.dart';
 import 'package:flutterx_application/src/use_cases/remove_sdk.dart';
+import 'package:flutterx_application/src/use_cases/resolve_project.dart';
 import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
 import 'package:flutterx_application/src/use_cases/use_sdk.dart';
@@ -40,7 +41,14 @@ final class FlutterXApi {
        cache = ManageCache(cacheOps, registry),
        config = ManageConfig(config),
        proxy = ProxyExec(projectStore, platform),
-       shell = ShellExec(sdkRepository, platform);
+       shell = ShellExec(sdkRepository, platform),
+       resolve = ResolveProject(
+         projects: projectStore,
+         registry: registry,
+         sdks: sdkRepository,
+         config: config,
+         clock: clock ?? DateTime.now,
+       );
 
   final InstallSdk install;
   final RemoveSdk remove;
@@ -52,4 +60,5 @@ final class FlutterXApi {
   final ManageConfig config;
   final ProxyExec proxy;
   final ShellExec shell;
+  final ResolveProject resolve;
 }

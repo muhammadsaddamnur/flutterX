@@ -136,10 +136,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.5 · `resolve` / `recommend` commands
 
-- [ ] **T2.5.1** Resolver orchestrator (pipeline conductor, no domain logic) per the flowchart incl. exits 11/12/13 — [03 §7](03-sdk-intelligence.md)
-- [ ] **T2.5.2** `resolution.lock` v1 format + `evidenceHash` staleness detection — [03 §7](03-sdk-intelligence.md)
-- [ ] **T2.5.3** `resolve` command (`--explain/--deep/--accept-low/--refresh`) + `recommend` (`--matrix/--candidates`) — [04 §3.4](04-cli-specification.md)
-- [ ] **T2.5.4** Shim cold path upgraded to auto-resolve (configurable) — [02 §8.3](02-system-architecture.md)
+- [x] **T2.5.1** Resolver orchestrator (pipeline conductor, no domain logic) per the flowchart incl. exits 11/12/13 — [03 §7](03-sdk-intelligence.md) *(design decision: `resolve` scans WITHOUT the resolution-lock extractor — the prior lock is this pipeline's output, not its strongest input; shims/`current` still treat it as the decision)*
+- [x] **T2.5.2** `resolution.lock` v1 format + `evidenceHash` staleness detection — [03 §7](03-sdk-intelligence.md) *(landed with M1.6/M1.7 plumbing; resolve now writes it with the full reason trail)*
+- [x] **T2.5.3** `resolve` command (`--explain/--accept-low/--refresh`) + `recommend` (`--explain`) — [04 §3.4](04-cli-specification.md) *(low-confidence TTY consent prompt; `--deep`/`--matrix`/`--candidates` land with Dependency Intelligence, M2.6)*
+- [x] **T2.5.4** Shim cold path upgraded to auto-resolve (configurable) — [02 §8.3](02-system-architecture.md) *(opt-in via `resolve.auto: true` or `FLUTTERX_AUTO_RESOLVE=1`; retry-once guard; shim v2)*
 
 ### M2.6 · Dependency Intelligence (fast mode)
 

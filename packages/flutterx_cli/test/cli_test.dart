@@ -243,6 +243,8 @@ final class Harness {
   final platform = FakePlatform();
   final out = <String>[];
   final err = <String>[];
+  var interactive = false;
+  final promptAnswers = <String>[];
 
   FlutterXCli cli() => FlutterXCli(
     api: FlutterXApi(
@@ -260,6 +262,8 @@ final class Harness {
     err: err.add,
     workingDirectory: '/work/app',
     environment: const {'SHELL': '/bin/zsh', 'PATH': '/usr/bin:/bin'},
+    interactive: interactive,
+    promptLine: () => promptAnswers.isEmpty ? null : promptAnswers.removeAt(0),
   );
 
   Future<int> run(List<String> args) => cli().run([...args, '--no-color']);
@@ -457,6 +461,93 @@ void main() {
       h.out.clear();
       expect(await h.run(['current']), 0);
       expect(h.out.join('\n'), contains('stale'));
+    });
+  });
+
+  group('resolve / recommend (docs/04 §3.4 — the flagship flow)', () {
+    // Real evidence in, real pipeline through scanner→solver→rules→rank.
+    Harness projectWith(Map<String, String> files) {
+      final h = Harness(
+        releases: [
+          release('3.24.1', dart: '3.5.1'),
+          release('3.22.2'),
+          release('3.22.1', dart: '3.4.1'),
+        ],
+      );
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.evidence = EvidenceFiles(files: files);
+      return h;
+    }
+
+    const pubspec = 'name: app\nenvironment:\n  sdk: ">=3.4.0 <3.5.0"\n';
+
+    test('resolves from hard evidence, applies, writes the lock', () async {
+      final h = projectWith(const {'pubspec.yaml': pubspec});
+      expect(await h.run(['resolve']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('solved 2 candidate(s) → policy → 2'));
+      expect(
+        body,
+        contains('Resolved Flutter 3.22.2 (Dart 3.4.3) — confidence:'),
+      );
+      expect(h.projects.lock!.resolvedBy, ResolvedBy.resolve);
+      expect(h.sdks.store.keys, contains('3.22.2'), reason: 'provisioned');
+    });
+
+    test('recommend reports without applying', () async {
+      final h = projectWith(const {'pubspec.yaml': pubspec});
+      expect(await h.run(['recommend']), 0);
+      expect(h.projects.lock, isNull);
+      expect(h.sdks.store, isEmpty);
+      expect(h.out.join('\n'), contains('Recommended Flutter 3.22.2'));
+    });
+
+    test('--explain prints the score breakdown', () async {
+      final h = projectWith(const {'pubspec.yaml': pubspec});
+      expect(await h.run(['resolve', '--explain']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('latest patch of its minor'));
+      expect(body, contains('total'));
+    });
+
+    test('conflicting constraints → exit 11 with the minimal pair', () async {
+      final h = projectWith(const {
+        'pubspec.yaml': 'name: app\nenvironment:\n  sdk: ">=3.9.0"\n',
+      });
+      expect(await h.run(['resolve']), 11);
+      expect(h.err.first, contains('FX-SOLVE-002'));
+      expect(h.err.join('\n'), contains('cache refresh'));
+    });
+
+    test('soft evidence only → exit 12 when non-interactive', () async {
+      final h = projectWith(const {'.metadata': 'project_type: app\n'});
+      expect(await h.run(['resolve']), 12);
+      expect(h.err.first, contains('FX-RESOLVE-001'));
+    });
+
+    test('--accept-low overrides the gate in CI', () async {
+      final h = projectWith(const {'.metadata': 'project_type: app\n'});
+      expect(await h.run(['resolve', '--accept-low']), 0);
+      expect(h.projects.lock, isNotNull);
+    });
+
+    test('a TTY prompt accepting low confidence proceeds', () async {
+      final h = projectWith(const {'.metadata': 'project_type: app\n'});
+      h.interactive = true;
+      h.promptAnswers.add('y');
+      expect(await h.run(['resolve']), 0);
+      expect(h.out.join('\n'), contains('Proceed anyway?'));
+      expect(h.projects.lock, isNotNull);
+    });
+
+    test('an existing pin decides with high confidence', () async {
+      final h = projectWith(const {
+        'pubspec.yaml': pubspec,
+        '.fvmrc': '{"flutter": "3.24.1"}',
+      });
+      expect(await h.run(['resolve']), 0);
+      expect(h.projects.lock!.chosen.version, SemVer.parse('3.24.1'));
+      expect(h.out.join('\n'), contains('confidence: high'));
     });
   });
 

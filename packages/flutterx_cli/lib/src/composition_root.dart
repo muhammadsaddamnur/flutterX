@@ -79,6 +79,8 @@ Future<FlutterXCli> buildCli() async {
     err: stderr.writeln,
     workingDirectory: Directory.current.path,
     environment: Platform.environment,
+    interactive: stdin.hasTerminal,
+    promptLine: stdin.readLineSync,
   );
 }
 

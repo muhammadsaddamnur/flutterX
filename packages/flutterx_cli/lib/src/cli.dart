@@ -15,6 +15,8 @@ final class FlutterXCli {
     required void Function(String) err,
     required this.workingDirectory,
     this.environment = const {},
+    this.interactive = false,
+    this.promptLine,
   }) : _out = out,
        _err = err;
 
@@ -26,6 +28,12 @@ final class FlutterXCli {
   /// Host environment (PATH, SHELL) for the shell command — injected for
   /// testability.
   final Map<String, String> environment;
+
+  /// Whether stdin is a TTY; gates confirmation prompts (docs/04 §1.1).
+  final bool interactive;
+
+  /// Reads one line from the user; null when non-interactive.
+  final String? Function()? promptLine;
 
   static const version = '0.1.0-dev';
 
@@ -129,6 +137,8 @@ final class FlutterXCli {
         console: console,
         args: commandResults,
         workingDirectory: workingDirectory,
+        interactive: interactive,
+        promptLine: promptLine,
       ),
     );
   }

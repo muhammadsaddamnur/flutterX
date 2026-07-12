@@ -12,12 +12,20 @@ final class CommandContext {
     required this.console,
     required this.args,
     required this.workingDirectory,
+    this.interactive = false,
+    this.promptLine,
   });
 
   final FlutterXApi api;
   final Console console;
   final ArgResults args;
   final String workingDirectory;
+
+  /// Whether stdin is a TTY — gates confirmation prompts (docs/04 §1.1).
+  final bool interactive;
+
+  /// Reads one line from the user; null in non-interactive contexts.
+  final String? Function()? promptLine;
 }
 
 /// One CLI command: name, help, flags, handler. Handlers only map
@@ -65,6 +73,107 @@ String formatBytes(int bytes) {
     unit++;
   }
   return '${value.toStringAsFixed(value >= 100 ? 0 : 1)} ${units[unit]}';
+}
+
+/// Shared handler for `resolve` (applies) and `recommend` (reports only)
+/// — docs/04 §3.4. Low confidence prompts on a TTY and fails with exit 12
+/// otherwise (docs/03 §5.2).
+Future<int> runResolvePipeline(
+  CommandContext ctx, {
+  required bool apply,
+}) async {
+  var acceptLow = apply && ctx.args['accept-low'] as bool;
+  final refresh = apply && ctx.args['refresh'] as bool;
+
+  var result = await ctx.api.resolve.execute(
+    ctx.workingDirectory,
+    apply: apply,
+    acceptLow: acceptLow,
+    refresh: refresh,
+  );
+
+  // TTY consent path: ask once, then re-run accepting low confidence.
+  if (result case Err(
+    failure: LowConfidenceRefused(:final message),
+  ) when ctx.interactive && !acceptLow && !ctx.console.json) {
+    ctx.console.warn(message);
+    ctx.console.write('Proceed anyway? [y/N]');
+    if ((ctx.promptLine?.call() ?? '').trim().toLowerCase() == 'y') {
+      acceptLow = true;
+      result = await ctx.api.resolve.execute(
+        ctx.workingDirectory,
+        apply: apply,
+        acceptLow: true,
+        refresh: refresh,
+      );
+    }
+  }
+
+  switch (result) {
+    case Err(:final failure):
+      return fail(ctx.console, failure);
+    case Ok(:final value):
+      final chosen = value.recommendation.chosen.release;
+      if (ctx.console.json) {
+        ctx.console.emitJson(
+          ok: true,
+          data: {
+            'flutter': '${chosen.version}',
+            'dart': '${chosen.dartVersion}',
+            'confidence': value.recommendation.confidence.name,
+            'applied': value.resolution != null,
+            'candidatesSolved': value.candidatesSolved,
+            'candidatesAllowed': value.candidatesAllowed,
+            'reasons': [
+              for (final r in value.recommendation.chosen.contributions)
+                {'text': r.text, 'delta': r.delta},
+            ],
+            'alternatives': [
+              for (final alt in value.recommendation.alternatives)
+                {'version': '${alt.release.version}', 'score': alt.score},
+            ],
+            'warnings': [for (final w in value.warnings) '$w'],
+          },
+        );
+        return ExitCodes.ok;
+      }
+
+      for (final warning in value.warnings) {
+        ctx.console.warn('$warning');
+      }
+      ctx.console.step(
+        'solved ${value.candidatesSolved} candidate(s) → policy → '
+        '${value.candidatesAllowed}',
+      );
+      ctx.console.success(
+        '${apply ? 'Resolved' : 'Recommended'} Flutter ${chosen.version} '
+        '(Dart ${chosen.dartVersion}) — confidence: '
+        '${value.recommendation.confidence.name}',
+      );
+      if (value.recommendation.chosen.contributions.isNotEmpty &&
+          !(ctx.args['explain'] as bool)) {
+        ctx.console.info(
+          'top reason: '
+          '${value.recommendation.chosen.contributions.first.text} '
+          '(run with --explain for the full trace)',
+        );
+      }
+      if (ctx.args['explain'] as bool) {
+        ctx.console.write('');
+        ctx.console.write(value.explain());
+      }
+      if (!apply && value.recommendation.alternatives.isNotEmpty) {
+        for (final alt in value.recommendation.alternatives) {
+          ctx.console.step(
+            'alternative: ${alt.release.version} (score ${alt.score})',
+          );
+        }
+      }
+      if (apply) {
+        ctx.console.info('lock written — commit .flutterx/resolution.lock');
+      }
+      return ExitCodes.ok;
+  }
 }
 
 /// The command set (docs/04 §3). Later milestones append here.
@@ -251,6 +360,21 @@ final commandSpecs = <CommandSpec>[
           return ExitCodes.ok;
       }
     },
+  ),
+  CommandSpec(
+    name: 'resolve',
+    description: 'Run SDK Intelligence and pin the result.',
+    configure: (parser) => parser
+      ..addFlag('explain', negatable: false)
+      ..addFlag('accept-low', negatable: false)
+      ..addFlag('refresh', negatable: false),
+    run: (ctx) => runResolvePipeline(ctx, apply: true),
+  ),
+  CommandSpec(
+    name: 'recommend',
+    description: 'Show the SDK recommendation without applying it.',
+    configure: (parser) => parser..addFlag('explain', negatable: false),
+    run: (ctx) => runResolvePipeline(ctx, apply: false),
   ),
   CommandSpec(
     name: 'doctor',

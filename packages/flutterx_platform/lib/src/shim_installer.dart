@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 
 /// Bump when the shim template changes — the installer rewrites any shim
 /// whose embedded version differs.
-const shimVersion = 1;
+const shimVersion = 2;
 
 /// POSIX shim (docs/02 §8.3, ADR-6): pure fast path — walk up to the
 /// project's `.flutterx/sdk` link and exec the real tool. No intelligence,
@@ -45,8 +45,16 @@ while :; do
   dir=\$(dirname "\$dir")
 done
 
+flutterx_bin="\$(dirname "\$0")/flutterx"
+config="\${FLUTTERX_HOME:-\$HOME/.flutterx}/config.yaml"
+if [ -z "\${FLUTTERX_SHIM_RETRY:-}" ] && [ -x "\$flutterx_bin" ] && \\
+   { [ "\${FLUTTERX_AUTO_RESOLVE:-}" = "1" ] || grep -qs 'resolve.auto: true' "\$config"; }; then
+  # Cold path auto-resolve (docs/02 §8.3, opt-in): resolve once, retry.
+  "\$flutterx_bin" resolve >&2 && FLUTTERX_SHIM_RETRY=1 exec "\$0" "\$@"
+fi
+
 echo "flutterx: no resolved SDK for this directory." >&2
-echo "  → run 'flutterx use <version>' in your project" >&2
+echo "  → run 'flutterx resolve' (automatic) or 'flutterx use <version>'" >&2
 exit 1
 ''';
 

@@ -105,6 +105,38 @@ void main() {
     expect(result.stdout, contains('args:upgrade'));
   });
 
+  test('cold path auto-resolves when configured (T2.5.4)', () async {
+    final home = p.join(tmp.path, 'fxhome');
+    File(p.join(home, 'config.yaml')).createSync(recursive: true);
+    File(p.join(home, 'config.yaml')).writeAsStringSync('resolve.auto: true\n');
+
+    // Fake flutterx binary next to the shims: "resolving" = linking the
+    // project to the fake SDK, exactly what the real resolve does.
+    final coldProject = p.join(tmp.path, 'work', 'cold');
+    Directory(coldProject).createSync(recursive: true);
+    final sdkDir = p.join(tmp.path, 'store', 'versions', '3.22.2');
+    final fakeFlutterx = File(p.join(binDir, 'flutterx'));
+    fakeFlutterx.writeAsStringSync(
+      '#!/bin/sh\n'
+      'mkdir -p "\$PWD/.flutterx"\n'
+      'ln -s "$sdkDir" "\$PWD/.flutterx/sdk"\n'
+      'echo "resolved" >&2\n',
+    );
+    await Process.run('chmod', ['755', fakeFlutterx.path]);
+
+    final result = await shim(
+      'flutter',
+      ['--version'],
+      cwd: coldProject,
+      env: {'FLUTTERX_HOME': home},
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(result.stderr, contains('resolved'));
+    expect(result.stdout, contains('fake-flutter 3.22.2'));
+
+    fakeFlutterx.deleteSync(); // keep other cold-path tests cold
+  });
+
   test('broken sdk link → repair hint, not a confusing exec error', () async {
     final broken = p.join(tmp.path, 'work', 'broken');
     await Directory(p.join(broken, '.flutterx')).create(recursive: true);
