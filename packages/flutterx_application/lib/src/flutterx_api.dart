@@ -4,6 +4,7 @@ import 'package:flutterx_application/src/use_cases/manage_cache.dart';
 import 'package:flutterx_application/src/use_cases/manage_config.dart';
 import 'package:flutterx_application/src/use_cases/proxy_exec.dart';
 import 'package:flutterx_application/src/use_cases/remove_sdk.dart';
+import 'package:flutterx_application/src/use_cases/repair_environment.dart';
 import 'package:flutterx_application/src/use_cases/resolve_project.dart';
 import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
@@ -48,6 +49,15 @@ final class FlutterXApi {
          sdks: sdkRepository,
          config: config,
          clock: clock ?? DateTime.now,
+       ),
+       repair = RepairEnvironment(
+         storeHealth: storeHealth,
+         projects: projectStore,
+         sdks: sdkRepository,
+         registry: registry,
+         cacheOps: cacheOps,
+         config: config,
+         clock: clock ?? DateTime.now,
        );
 
   final InstallSdk install;
@@ -61,4 +71,5 @@ final class FlutterXApi {
   final ProxyExec proxy;
   final ShellExec shell;
   final ResolveProject resolve;
+  final RepairEnvironment repair;
 }

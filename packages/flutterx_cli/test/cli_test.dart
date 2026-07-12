@@ -179,14 +179,15 @@ final class FakeHealth implements StoreHealthPort, PlatformHealthPort {
   var platformProbes = <Probe>[
     const Probe(kind: 'git', subject: '2.51', ok: true),
   ];
+  var projectProbes = <Probe>[
+    const Probe(kind: 'project-lock', subject: 'lock', ok: true),
+  ];
 
   @override
   Future<List<Probe>> probeStore() async => storeProbes;
 
   @override
-  Future<List<Probe>> probeProject(Project project) async => const [
-    Probe(kind: 'project-lock', subject: 'lock', ok: true),
-  ];
+  Future<List<Probe>> probeProject(Project project) async => projectProbes;
 
   @override
   Future<List<Probe>> probePlatform() async => platformProbes;
@@ -648,6 +649,81 @@ sdks:
       ];
       expect(await h.run(['doctor', '--path-fix']), 0);
       expect(h.out.single, 'export PATH="/store/bin:\$PATH"');
+    });
+  });
+
+  group('repair (docs/04 §3.8)', () {
+    test('healthy environment → no issues, exit 0', () async {
+      final h = Harness();
+      expect(await h.run(['repair']), 0);
+      expect(h.out.single, contains('no issues found'));
+    });
+
+    test('--dry-run lists the plan without fixing', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+      ];
+      expect(await h.run(['repair', '--dry-run']), 0);
+      expect(h.out.join('\n'), contains('[FX-R03] corrupt worktree 3.22.2'));
+      expect(h.sdks.store, isEmpty, reason: 'nothing executed');
+    });
+
+    test('non-interactive without --yes refuses politely', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+      ];
+      expect(await h.run(['repair']), 2);
+      expect(h.err.first, contains('--yes'));
+    });
+
+    test('--yes recreates a corrupt worktree (FX-R03)', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('FX-R03: worktree recreated'));
+      expect(h.sdks.store.keys, contains('3.22.2'), reason: 're-provisioned');
+    });
+
+    test('FX-R01 re-links from the lock', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      await h.run(['use', '3.22.2']);
+      h.out.clear();
+      h.health.projectProbes = [
+        const Probe(
+          kind: 'project-link',
+          subject: '/work/app/.flutterx/sdk',
+          ok: false,
+        ),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('FX-R01: re-linked to 3.22.2'));
+    });
+
+    test('--only filters diagnoses', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+        const Probe(kind: 'artifacts', subject: '3.24.1', ok: false),
+      ];
+      expect(await h.run(['repair', '--yes', '--only', 'FX-R05']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('skipped FX-R03'));
+      expect(body, contains('FX-R05: artifacts re-downloaded'));
+    });
+
+    test('a failing fix reports and exits 15', () async {
+      final h = Harness();
+      h.registry.offline = true;
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+      ];
+      expect(await h.run(['repair', '--yes']), 15);
+      expect(h.err.join('\n'), contains('FX-R03'));
     });
   });
 

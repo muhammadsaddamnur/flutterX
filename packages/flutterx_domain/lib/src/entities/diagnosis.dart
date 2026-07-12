@@ -29,6 +29,7 @@ final class Diagnosis {
   const Diagnosis({
     required this.id,
     required this.severity,
+    required this.subject,
     required this.summary,
     required this.plan,
   });
@@ -37,6 +38,10 @@ final class Diagnosis {
   final String id;
 
   final Severity severity;
+
+  /// What the fix targets — a version (`3.22.2`) or a project path —
+  /// machine-readable for the executors.
+  final String subject;
 
   /// One-line description shown by `doctor` and `repair`.
   final String summary;

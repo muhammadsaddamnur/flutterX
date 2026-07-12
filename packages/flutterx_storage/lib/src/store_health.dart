@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutterx_domain/flutterx_domain.dart';
@@ -63,21 +64,69 @@ final class StoreHealth implements StoreHealthPort {
       );
     }
 
-    // Half-installed versions: worktree without manifest (FX-R03 family).
+    // Installed versions: manifest present, worktree intact (FX-R03),
+    // manifest-listed artifacts still in the CAS (FX-R05).
     final versionsDir = Directory(layout.versionsDir);
     if (versionsDir.existsSync()) {
       await for (final dir in versionsDir.list()) {
         if (dir is! Directory) continue;
         final version = p.basename(dir.path);
-        final hasManifest = File(layout.versionManifest(version)).existsSync();
+        final manifestFile = File(layout.versionManifest(version));
+        if (!manifestFile.existsSync()) {
+          probes.add(
+            Probe(
+              kind: 'version-manifest',
+              subject: version,
+              ok: false,
+              detail: 'worktree without manifest (half-installed)',
+            ),
+          );
+          continue;
+        }
+        // Worktree integrity: the version stamp and git link must exist —
+        // their absence means files went missing (FX-R03).
+        final intact =
+            File(p.join(dir.path, 'version')).existsSync() &&
+            FileSystemEntity.typeSync(p.join(dir.path, '.git')) !=
+                FileSystemEntityType.notFound;
         probes.add(
           Probe(
-            kind: 'version-manifest',
+            kind: 'worktree',
             subject: version,
-            ok: hasManifest,
-            detail: hasManifest ? null : 'worktree without manifest',
+            ok: intact,
+            detail: intact ? null : 'worktree files missing (FX-R03)',
           ),
         );
+        try {
+          final manifest =
+              jsonDecode(await manifestFile.readAsString())
+                  as Map<String, Object?>;
+          final missing = [
+            for (final sha
+                in (manifest['artifacts'] as List<Object?>? ?? const []))
+              if (!File(layout.casPayload(sha! as String)).existsSync()) sha,
+          ];
+          probes.add(
+            Probe(
+              kind: 'artifacts',
+              subject: version,
+              ok: missing.isEmpty,
+              detail: missing.isEmpty
+                  ? null
+                  : '${missing.length} artifact(s) missing from the CAS '
+                        '(FX-R05)',
+            ),
+          );
+        } on Exception {
+          probes.add(
+            Probe(
+              kind: 'version-manifest',
+              subject: version,
+              ok: false,
+              detail: 'manifest unreadable',
+            ),
+          );
+        }
       }
     }
 

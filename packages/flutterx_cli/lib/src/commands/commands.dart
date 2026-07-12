@@ -480,6 +480,104 @@ final commandSpecs = <CommandSpec>[
     },
   ),
   CommandSpec(
+    name: 'repair',
+    description: 'Diagnose and fix store/project problems.',
+    configure: (parser) => parser
+      ..addFlag('yes', negatable: false)
+      ..addFlag('force', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addOption('only', help: 'Comma-separated diagnosis ids (FX-R03,…).'),
+    run: (ctx) async {
+      final diagnoses = await ctx.api.repair.plan(ctx.workingDirectory);
+      if (diagnoses.isEmpty) {
+        ctx.console.json
+            ? ctx.console.emitJson(ok: true, data: {'issues': 0})
+            : ctx.console.success('no issues found');
+        return ExitCodes.ok;
+      }
+
+      if (!ctx.console.json) {
+        ctx.console.write('Found ${diagnoses.length} issue(s):');
+        for (final diagnosis in diagnoses) {
+          ctx.console.write(
+            '  [${diagnosis.id}] ${diagnosis.summary}'
+            ' → ${diagnosis.plan.steps.map((s) => s.description).join('; ')}',
+          );
+        }
+      }
+      if (ctx.args['dry-run'] as bool) {
+        if (ctx.console.json) {
+          ctx.console.emitJson(
+            ok: true,
+            data: {
+              'issues': [
+                for (final d in diagnoses) {'id': d.id, 'summary': d.summary},
+              ],
+              'dryRun': true,
+            },
+          );
+        }
+        return ExitCodes.ok;
+      }
+
+      final yes = ctx.args['yes'] as bool;
+      if (!yes) {
+        if (!ctx.interactive) {
+          ctx.console.writeError(
+            '✗ refusing to fix without consent — pass --yes '
+            '(or --dry-run to only look)',
+          );
+          return ExitCodes.usage;
+        }
+        ctx.console.write('Apply ${diagnoses.length} fix(es)? [Y/n]');
+        final answer = (ctx.promptLine?.call() ?? 'n').trim().toLowerCase();
+        if (answer == 'n' || answer == 'no') {
+          ctx.console.info('nothing changed');
+          return ExitCodes.ok;
+        }
+      }
+
+      final only = (ctx.args['only'] as String?)
+          ?.split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toSet();
+      final report = await ctx.api.repair.execute(
+        diagnoses,
+        only: only,
+        // Destructive fixes need --force even under --yes (docs/03 §9.2).
+        allowDestructive: ctx.args['force'] as bool,
+        allowReResolve: yes || ctx.interactive,
+      );
+
+      if (ctx.console.json) {
+        ctx.console.emitJson(
+          ok: report.clean,
+          data: {
+            'fixed': report.fixed,
+            'skipped': report.skipped,
+            'failed': report.failed,
+          },
+        );
+        return report.clean ? ExitCodes.ok : 15;
+      }
+      for (final line in report.fixed) {
+        ctx.console.success(line);
+      }
+      for (final line in report.skipped) {
+        ctx.console.warn('skipped $line');
+      }
+      for (final line in report.failed) {
+        ctx.console.writeError('✗ $line');
+      }
+      if (report.clean) {
+        ctx.console.info('re-run `flutterx doctor` anytime');
+        return ExitCodes.ok;
+      }
+      return 15;
+    },
+  ),
+  CommandSpec(
     name: 'cache',
     description: 'Inspect or refresh the shared store.',
     configure: (parser) => parser..addFlag('registry-only', negatable: false),

@@ -150,10 +150,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.7 · Repair Engine (first half)
 
-- [ ] **T2.7.1** `RepairPlanner` catalogue + probes for FX-R01…FX-R05 — [03 §9.1](03-sdk-intelligence.md)
-- [ ] **T2.7.2** Fix executors (infra): idempotent, journaled, severity-ordered — [03 §9.2](03-sdk-intelligence.md)
-- [ ] **T2.7.3** `repair` command (`--yes/--force/--only/--dry-run`; destructive-fix confirmation rules) — [04 §3.8](04-cli-specification.md)
-- [ ] **T2.7.4** `doctor` reuses identical probes (doctor = repair minus executor) — [03 §9.2](03-sdk-intelligence.md)
+- [x] **T2.7.1** `RepairPlanner` catalogue + probes for FX-R01…FX-R05 — [03 §9.1](03-sdk-intelligence.md) *(new probes: worktree integrity, manifest-artifacts-in-CAS, stale-lock; `Diagnosis` gained a machine-readable `subject`; FX-R04's destructive re-clone escalation deferred to M3.2's journal machinery)*
+- [x] **T2.7.2** Fix executors (infra): idempotent, journaled, severity-ordered — [03 §9.2](03-sdk-intelligence.md) *(executors run through existing journaled ports — ensureInstalled/remove/linkSdk/refreshGitObjects/resolve; bare repo fixed before worktrees)*
+- [x] **T2.7.3** `repair` command (`--yes/--force/--only/--dry-run`; destructive-fix confirmation rules) — [04 §3.8](04-cli-specification.md) *(non-interactive without `--yes` refuses politely; FX-R02 re-resolve needs `--yes`/TTY consent)*
+- [x] **T2.7.4** `doctor` reuses identical probes (doctor = repair minus executor) — [03 §9.2](03-sdk-intelligence.md) *(stale-lock probe added to both paths)*
 
 ### M2.8 · GC + reference counting
 

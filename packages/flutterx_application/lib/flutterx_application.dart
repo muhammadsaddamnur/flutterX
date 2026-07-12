@@ -18,6 +18,7 @@ export 'src/use_cases/manage_cache.dart';
 export 'src/use_cases/manage_config.dart';
 export 'src/use_cases/proxy_exec.dart';
 export 'src/use_cases/remove_sdk.dart';
+export 'src/use_cases/repair_environment.dart';
 export 'src/use_cases/resolve_project.dart';
 export 'src/use_cases/run_doctor.dart';
 export 'src/use_cases/show_current.dart';

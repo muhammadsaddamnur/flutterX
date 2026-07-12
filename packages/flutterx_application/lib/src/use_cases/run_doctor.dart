@@ -1,3 +1,5 @@
+import 'package:flutterx_application/src/use_cases/use_sdk.dart'
+    show evidenceHash;
 import 'package:flutterx_domain/flutterx_domain.dart';
 
 /// One rendered doctor section (docs/04 §3.7): Store / Project / Platform.
@@ -48,21 +50,36 @@ final class RunDoctor {
     }
     if (project) {
       final found = await _projects.findProject(cwd);
-      sections.add(
-        DoctorSection(
-          name: 'Project',
-          probes: found == null
-              ? const [
+      final probes = found == null
+          ? const [
+              Probe(
+                kind: 'project',
+                subject: 'cwd',
+                ok: true,
+                detail: 'not inside a project',
+              ),
+            ]
+          : [
+              ...await _storeHealth.probeProject(found),
+              // Stale-lock (FX-R02) — identical to repair's probe
+              // (docs/03 §9.2: doctor = repair minus the executor).
+              if (await _projects.readLock(found) case final lock?)
+                if (lock.evidenceHash == await evidenceHash(_projects, found))
                   Probe(
-                    kind: 'project',
-                    subject: 'cwd',
+                    kind: 'stale-lock',
+                    subject: found.rootPath,
                     ok: true,
-                    detail: 'not inside a project',
+                    detail: 'lock fresh',
+                  )
+                else
+                  Probe(
+                    kind: 'stale-lock',
+                    subject: found.rootPath,
+                    ok: false,
+                    detail: 'evidence changed → run `flutterx resolve`',
                   ),
-                ]
-              : await _storeHealth.probeProject(found),
-        ),
-      );
+            ];
+      sections.add(DoctorSection(name: 'Project', probes: probes));
     }
     if (platform) {
       sections.add(
