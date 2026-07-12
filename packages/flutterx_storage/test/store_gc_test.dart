@@ -215,13 +215,10 @@ void main() {
   test('stale downloads are pruned; fresh ones stay', () async {
     final downloads = Directory(layout.downloadsDir)
       ..createSync(recursive: true);
-    File(p.join(downloads.path, 'old.partial')).writeAsStringSync('x' * 100);
-    // Backdate mtime beyond the 7-day grace.
-    await Process.run('touch', [
-      '-t',
-      '202601010000',
-      p.join(downloads.path, 'old.partial'),
-    ]);
+    final old = File(p.join(downloads.path, 'old.partial'))
+      ..writeAsStringSync('x' * 100);
+    // Backdate mtime beyond the 7-day grace (portable — no `touch`).
+    old.setLastModifiedSync(DateTime.utc(2026, 1, 1));
     File(p.join(downloads.path, 'fresh.partial')).writeAsStringSync('y');
 
     final report = (await gc.run(options())).valueOrNull!;

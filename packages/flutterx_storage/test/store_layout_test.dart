@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutterx_storage/flutterx_storage.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -69,7 +70,8 @@ void main() {
   test('CAS paths shard by lowercase prefix (docs/05 §8)', () {
     const sha =
         'ABCDEF1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
-    expect(layout.casEntryDir(sha), contains('/ab/abcdef'));
+    // Separator-agnostic (Windows CI runs this too).
+    expect(layout.casEntryDir(sha), contains(p.join('ab', sha.toLowerCase())));
     expect(layout.casPayload(sha), endsWith('payload'));
   });
 }
