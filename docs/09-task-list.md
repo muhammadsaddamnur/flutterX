@@ -157,10 +157,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.8 · GC + reference counting
 
-- [ ] **T2.8.1** Reference graph: project-registry validation, orphan + unreferenced-artifact detection, grace periods — [05 §6.1–6.2](05-storage-design.md)
-- [ ] **T2.8.2** `cache gc` (`--dry-run/--aggressive/--keep`) incl. precache-adoption pass — [05 §6.2](05-storage-design.md), [04 §3.10](04-cli-specification.md)
-- [ ] **T2.8.3** `cache verify` (hash audit + git fsck, read-only) — [04 §3.10](04-cli-specification.md)
-- [ ] **T2.8.4** Opt-in auto-hygiene suggestion (`gc.auto`) — [05 §6.3](05-storage-design.md)
+- [x] **T2.8.1** Reference graph: project-registry validation, orphan + unreferenced-artifact detection, grace periods — [05 §6.1–6.2](05-storage-design.md) *(registry validated against live `.flutterx/sdk` link targets; orphan age from manifest `installedAt`)*
+- [x] **T2.8.2** `cache gc` (`--dry-run/--aggressive/--keep`) incl. precache-adoption pass — [05 §6.2](05-storage-design.md), [04 §3.10](04-cli-specification.md) *(adoption scoped to `bin/cache/artifacts/` regular files; `ArtifactStore.adoptFile` hashes → moves → links back)*
+- [x] **T2.8.3** `cache verify` (hash audit + git fsck, read-only) — [04 §3.10](04-cli-specification.md)
+- [x] **T2.8.4** Opt-in auto-hygiene suggestion (`gc.auto`) — [05 §6.3](05-storage-design.md) *(dry-run sizing after install, threshold `gc.autoThresholdMb` default 500; suggest-only, never deletes)*
 
 ### M2.9 · Quality infrastructure
 

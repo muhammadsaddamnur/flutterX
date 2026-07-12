@@ -69,7 +69,13 @@ Future<FlutterXCli> buildCli() async {
     ),
     storeHealth: StoreHealth(layout: layout, git: git, journal: journal),
     platformHealth: PlatformHealth(shimInstaller: shimInstaller),
-    cacheOps: StoreCacheOps(layout: layout, git: git, journal: journal),
+    cacheOps: StoreCacheOps(
+      layout: layout,
+      git: git,
+      journal: journal,
+      artifacts: artifacts,
+      lock: lock,
+    ),
     config: FileConfigStore(configFilePath: layout.configFile),
     platform: HostPlatform(storeHome: storeHome),
   );

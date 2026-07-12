@@ -232,6 +232,14 @@ final commandSpecs = <CommandSpec>[
               'Flutter ${r.version} (Dart ${r.dartVersion}) installed '
               'at ${value.path}',
             );
+            // Opt-in auto-hygiene (docs/05 §6.3): suggest, never delete.
+            final reclaimable = await ctx.api.cache.autoHygieneSuggestion();
+            if (reclaimable != null) {
+              ctx.console.info(
+                '${formatBytes(reclaimable)} reclaimable — '
+                'run `flutterx cache gc`',
+              );
+            }
           }
           return ExitCodes.ok;
       }
@@ -579,11 +587,110 @@ final commandSpecs = <CommandSpec>[
   ),
   CommandSpec(
     name: 'cache',
-    description: 'Inspect or refresh the shared store.',
-    configure: (parser) => parser..addFlag('registry-only', negatable: false),
+    description: 'Inspect, refresh, collect, or verify the shared store.',
+    configure: (parser) => parser
+      ..addFlag('registry-only', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('aggressive', negatable: false)
+      ..addOption('keep', help: 'Comma-separated versions GC never touches.'),
     run: (ctx) async {
       final sub = ctx.args.rest.isEmpty ? 'status' : ctx.args.rest.first;
       switch (sub) {
+        case 'gc':
+          final dryRun = ctx.args['dry-run'] as bool;
+          final result = await ctx.api.cache.gc(
+            dryRun: dryRun,
+            aggressive: ctx.args['aggressive'] as bool,
+            keep:
+                (ctx.args['keep'] as String?)
+                    ?.split(',')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toSet() ??
+                const {},
+          );
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              if (ctx.console.json) {
+                ctx.console.emitJson(
+                  ok: true,
+                  data: {
+                    'dryRun': value.dryRun,
+                    'totalBytes': value.totalBytes,
+                    'versions': value.versionBytes,
+                    'artifactsRemoved': value.artifactsRemoved,
+                    'artifactBytes': value.artifactBytes,
+                    'downloadBytes': value.downloadBytes,
+                    'adoptedArtifacts': value.adoptedArtifacts,
+                  },
+                );
+                return ExitCodes.ok;
+              }
+              ctx.console.write(
+                '${value.dryRun ? 'Would reclaim' : 'Reclaimed'} '
+                '${formatBytes(value.totalBytes)}:',
+              );
+              ctx.console.table([
+                for (final entry in value.versionBytes.entries)
+                  [
+                    '  ${formatBytes(entry.value)}',
+                    'version ${entry.key} (no project references)',
+                  ],
+                if (value.artifactsRemoved > 0)
+                  [
+                    '  ${formatBytes(value.artifactBytes)}',
+                    '${value.artifactsRemoved} unreferenced artifact(s)',
+                  ],
+                if (value.downloadBytes > 0)
+                  [
+                    '  ${formatBytes(value.downloadBytes)}',
+                    'stale partial downloads',
+                  ],
+              ]);
+              if (value.adoptedArtifacts > 0) {
+                ctx.console.info(
+                  '${value.adoptedArtifacts} stray file(s) adopted into '
+                  'the CAS',
+                );
+              }
+              if (value.dryRun) {
+                ctx.console.info('run without --dry-run to apply');
+              }
+              return ExitCodes.ok;
+          }
+        case 'verify':
+          final report = await ctx.api.cache.verify();
+          if (ctx.console.json) {
+            ctx.console.emitJson(
+              ok: report.healthy,
+              data: {
+                'checkedArtifacts': report.checkedArtifacts,
+                'corruptArtifacts': report.corruptArtifacts,
+                'gitHealthy': report.gitHealthy,
+                'gitIssues': report.gitIssues,
+              },
+            );
+            return report.healthy ? ExitCodes.ok : 15;
+          }
+          ctx.console.write(
+            '${report.healthy ? '✓' : '✗'} '
+            '${report.checkedArtifacts} artifact(s) checked, '
+            '${report.corruptArtifacts.length} corrupt; '
+            'git ${report.gitHealthy ? 'healthy' : 'UNHEALTHY'}',
+          );
+          for (final sha in report.corruptArtifacts) {
+            ctx.console.writeError('  ✗ corrupt payload $sha');
+          }
+          for (final issue in report.gitIssues) {
+            ctx.console.writeError('  ✗ $issue');
+          }
+          if (!report.healthy) {
+            ctx.console.info('run `flutterx repair` to fix');
+            return 15;
+          }
+          return ExitCodes.ok;
         case 'status':
           final status = await ctx.api.cache.status();
           if (ctx.console.json) {
@@ -642,8 +749,7 @@ final commandSpecs = <CommandSpec>[
           }
         default:
           ctx.console.writeError(
-            '✗ usage: flutterx cache <status|refresh> '
-            '(gc and verify land with M2.8)',
+            '✗ usage: flutterx cache <status|refresh|gc|verify>',
           );
           return ExitCodes.usage;
       }

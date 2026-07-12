@@ -12,6 +12,7 @@ export 'src/download_manager.dart';
 export 'src/file_journal.dart';
 export 'src/project_store_impl.dart';
 export 'src/sdk_repository_impl.dart';
+export 'src/store_gc.dart';
 export 'src/store_health.dart';
 export 'src/store_layout.dart';
 export 'src/store_lock.dart';

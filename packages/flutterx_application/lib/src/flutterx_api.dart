@@ -39,7 +39,7 @@ final class FlutterXApi {
        current = ShowCurrent(projectStore, scanner ?? StandardProjectScanner()),
        list = ListSdks(sdkRepository, registry),
        doctor = RunDoctor(storeHealth, platformHealth, projectStore),
-       cache = ManageCache(cacheOps, registry),
+       cache = ManageCache(cacheOps, registry, config, clock ?? DateTime.now),
        config = ManageConfig(config),
        proxy = ProxyExec(projectStore, platform),
        shell = ShellExec(sdkRepository, platform),

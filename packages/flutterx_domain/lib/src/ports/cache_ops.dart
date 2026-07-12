@@ -29,6 +29,78 @@ final class CacheStatus {
       downloadsBytes;
 }
 
+/// Options for `cache gc` (docs/05 §6.2).
+final class GcOptions {
+  GcOptions({
+    this.dryRun = false,
+    this.aggressive = false,
+    Set<String> keep = const {},
+    this.orphanGrace = const Duration(days: 14),
+    this.downloadGrace = const Duration(days: 7),
+    required this.now,
+  }) : keep = Set.unmodifiable(keep);
+
+  final bool dryRun;
+
+  /// Also repack/prune git objects — slower, reclaims more.
+  final bool aggressive;
+
+  /// Versions never reclaimed regardless of references.
+  final Set<String> keep;
+
+  /// Orphans younger than this are left alone (docs/05 §6.2 safety).
+  final Duration orphanGrace;
+  final Duration downloadGrace;
+
+  /// Injected clock.
+  final DateTime now;
+}
+
+/// What GC reclaimed (or would reclaim, when dry-run) — docs/04 §3.10.
+final class GcReport {
+  GcReport({
+    Map<String, int> versionBytes = const {},
+    this.artifactsRemoved = 0,
+    this.artifactBytes = 0,
+    this.downloadBytes = 0,
+    this.adoptedArtifacts = 0,
+    required this.dryRun,
+  }) : versionBytes = Map.unmodifiable(versionBytes);
+
+  /// Orphaned version → bytes reclaimed.
+  final Map<String, int> versionBytes;
+  final int artifactsRemoved;
+  final int artifactBytes;
+  final int downloadBytes;
+
+  /// Stray files adopted into the CAS (docs/05 §4.3 precache adoption).
+  final int adoptedArtifacts;
+  final bool dryRun;
+
+  int get totalBytes =>
+      versionBytes.values.fold<int>(0, (a, b) => a + b) +
+      artifactBytes +
+      downloadBytes;
+}
+
+/// `cache verify` (docs/04 §3.10): read-only integrity audit.
+final class CacheVerifyReport {
+  CacheVerifyReport({
+    required this.checkedArtifacts,
+    List<String> corruptArtifacts = const [],
+    required this.gitHealthy,
+    List<String> gitIssues = const [],
+  }) : corruptArtifacts = List.unmodifiable(corruptArtifacts),
+       gitIssues = List.unmodifiable(gitIssues);
+
+  final int checkedArtifacts;
+  final List<String> corruptArtifacts;
+  final bool gitHealthy;
+  final List<String> gitIssues;
+
+  bool get healthy => corruptArtifacts.isEmpty && gitHealthy;
+}
+
 /// Store-side cache operations (docs/04 §3.10) — implemented in
 /// `flutterx_storage`. Registry refresh is orchestrated by the
 /// application layer through `RegistryPort` alongside this.
@@ -38,4 +110,11 @@ abstract interface class CacheOps {
   /// Refreshes the bare repo's refs from origin (blobless — cheap).
   /// A store without a bare repo yet is a no-op success.
   Future<Result<void>> refreshGitObjects();
+
+  /// The reference-counted collector (docs/05 §6.2): orphaned versions,
+  /// unreferenced artifacts, stale downloads; adoption pass first.
+  Future<Result<GcReport>> gc(GcOptions options);
+
+  /// Hash-audit every CAS payload + `git fsck` — read-only.
+  Future<CacheVerifyReport> verify();
 }

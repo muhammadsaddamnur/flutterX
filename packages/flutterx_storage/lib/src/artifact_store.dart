@@ -95,6 +95,36 @@ final class ArtifactStore {
     return createLink(targetPath: ref.payloadPath, linkPath: targetPath);
   }
 
+  /// Adopts a stray regular file (e.g. written by `flutter precache`,
+  /// docs/05 §4.3) into the CAS: hash → move → link back in place.
+  /// Returns the adopted ref; an identical payload already in the CAS
+  /// just gets linked.
+  Future<Result<CasRef>> adoptFile(String filePath) async {
+    final file = File(filePath);
+    final digest = (await sha256.bind(file.openRead()).first).toString();
+    final ref = CasRef(sha256: digest, payloadPath: layout.casPayload(digest));
+    if (!File(ref.payloadPath).existsSync()) {
+      final entryDir = Directory(layout.casEntryDir(digest));
+      await entryDir.create(recursive: true);
+      await file.rename(ref.payloadPath);
+      await File(p.join(entryDir.path, 'meta.json')).writeAsString(
+        jsonEncode({
+          'sha256': digest,
+          'sourceUrl': 'adopted:$filePath',
+          'committedAt': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+    } else {
+      await file.delete(); // identical content already stored once
+    }
+    final linked = await createLink(
+      targetPath: ref.payloadPath,
+      linkPath: filePath,
+    );
+    if (linked case Err(:final failure)) return Result.err(failure);
+    return Result.ok(ref);
+  }
+
   /// Re-hashes every payload against its address (docs/05 §5.1).
   Future<VerifyReport> verify() async {
     var checked = 0;

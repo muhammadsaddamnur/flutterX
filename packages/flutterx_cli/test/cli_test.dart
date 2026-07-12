@@ -206,6 +206,34 @@ final class FakeCacheOps implements CacheOps {
 
   @override
   Future<Result<void>> refreshGitObjects() async => const Result.ok(null);
+
+  GcOptions? lastGcOptions;
+  var gcReport = GcReport(
+    versionBytes: const {'3.24.1': 231 * 1024 * 1024},
+    artifactsRemoved: 2,
+    artifactBytes: 305 * 1024 * 1024,
+    downloadBytes: 76 * 1024 * 1024,
+    dryRun: true,
+  );
+
+  @override
+  Future<Result<GcReport>> gc(GcOptions options) async {
+    lastGcOptions = options;
+    return Result.ok(
+      GcReport(
+        versionBytes: gcReport.versionBytes,
+        artifactsRemoved: gcReport.artifactsRemoved,
+        artifactBytes: gcReport.artifactBytes,
+        downloadBytes: gcReport.downloadBytes,
+        adoptedArtifacts: gcReport.adoptedArtifacts,
+        dryRun: options.dryRun,
+      ),
+    );
+  }
+
+  @override
+  Future<CacheVerifyReport> verify() async =>
+      CacheVerifyReport(checkedArtifacts: 3, gitHealthy: true);
 }
 
 final class FakeConfig implements ConfigPort {
@@ -250,6 +278,7 @@ final class Harness {
   final FakeProjectStore projects;
   final health = FakeHealth();
   final config = FakeConfig();
+  final cacheOps = FakeCacheOps();
   final platform = FakePlatform();
   final out = <String>[];
   final err = <String>[];
@@ -263,7 +292,7 @@ final class Harness {
       projectStore: projects,
       storeHealth: health,
       platformHealth: health,
-      cacheOps: FakeCacheOps(),
+      cacheOps: cacheOps,
       config: config,
       platform: platform,
       clock: () => DateTime.utc(2026, 7, 11),
@@ -746,6 +775,45 @@ sdks:
     test('unknown subcommand → usage', () async {
       final h = Harness();
       expect(await h.run(['cache', 'explode']), 2);
+    });
+
+    test('gc --dry-run renders the reclaim table (docs/04 §3.10)', () async {
+      final h = Harness();
+      expect(await h.run(['cache', 'gc', '--dry-run', '--keep', '3.19.6']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('Would reclaim'));
+      expect(body, contains('version 3.24.1'));
+      expect(body, contains('2 unreferenced artifact(s)'));
+      expect(body, contains('run without --dry-run to apply'));
+      expect(h.cacheOps.lastGcOptions!.dryRun, isTrue);
+      expect(h.cacheOps.lastGcOptions!.keep, {'3.19.6'});
+    });
+
+    test('verify healthy → exit 0; summary line rendered', () async {
+      final h = Harness();
+      expect(await h.run(['cache', 'verify']), 0);
+      expect(h.out.single, contains('3 artifact(s) checked, 0 corrupt'));
+    });
+  });
+
+  group('auto-hygiene (docs/05 §6.3)', () {
+    test(
+      'suggests gc after install when gc.auto=true and above threshold',
+      () async {
+        final h = Harness();
+        h.config.entries['gc.auto'] = 'true';
+        expect(await h.run(['install', '3.22.2']), 0);
+        expect(
+          h.out.join('\n'),
+          contains('reclaimable — run `flutterx cache gc`'),
+        );
+      },
+    );
+
+    test('stays silent when gc.auto is unset', () async {
+      final h = Harness();
+      expect(await h.run(['install', '3.22.2']), 0);
+      expect(h.out.join('\n'), isNot(contains('reclaimable')));
     });
   });
 
