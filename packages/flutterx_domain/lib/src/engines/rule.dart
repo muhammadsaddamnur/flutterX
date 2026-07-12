@@ -40,6 +40,7 @@ final class RuleContext {
     required this.evidence,
     required this.newestKnown,
     required this.now,
+    this.candidates = const [],
   });
 
   final ProjectEvidence evidence;
@@ -50,6 +51,11 @@ final class RuleContext {
 
   /// Injected clock (freshness windows) — rules never read wall time.
   final DateTime now;
+
+  /// The full candidate set under evaluation — read-only context for
+  /// relative judgments like "latest patch of its minor"
+  /// (`prefer-lts-like`, docs/03 §4.2). Rules stay order-independent.
+  final List<FlutterRelease> candidates;
 }
 
 /// A policy rule (docs/03 §4). Evaluated independently per candidate;

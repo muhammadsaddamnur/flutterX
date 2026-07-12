@@ -122,10 +122,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.3 · Rule Engine
 
-- [ ] **T2.3.1** `RuleEngine` aggregator: deny > penalize/prefer, order-independent evaluation — [03 §4.1](03-sdk-intelligence.md)
-- [ ] **T2.3.2** Built-in rules: `deny-retracted`, `channel-policy`, `min-version-floor`, `deny-list`/`allow-list`, `freshness-window`, `prefer-lts-like` — [03 §4.2](03-sdk-intelligence.md)
-- [ ] **T2.3.3** Policy precedence chain + tighten-only + `lockdown` + unknown-rule-id forward compat — [03 §4.3](03-sdk-intelligence.md)
-- [ ] **T2.3.4** All-denied denial table + single-relaxation unblock computation — [03 §4.3](03-sdk-intelligence.md)
+- [x] **T2.3.1** `RuleEngine` aggregator: deny > penalize/prefer, order-independent evaluation — [03 §4.1](03-sdk-intelligence.md) *(`RuleContext` gained a read-only `candidates` field for relative judgments like prefer-lts-like)*
+- [x] **T2.3.2** Built-in rules: `deny-retracted`, `channel-policy`, `min-version-floor`, `deny-list`/`allow-list`, `freshness-window`, `prefer-lts-like` — [03 §4.2](03-sdk-intelligence.md)
+- [x] **T2.3.3** Policy precedence chain + tighten-only + `lockdown` + unknown-rule-id forward compat — [03 §4.3](03-sdk-intelligence.md) *(per-key tighten semantics: channel narrows, floor raises, deny-list grows, allow-list shrinks, freshness shortens, deny-retracted never disables; org/workspace layers plug in at M3.3/M4.3)*
+- [x] **T2.3.4** All-denied denial table + single-relaxation unblock computation — [03 §4.3](03-sdk-intelligence.md)
 
 ### M2.4 · Recommendation Engine
 

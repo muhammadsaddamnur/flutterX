@@ -5,6 +5,9 @@
 /// `src/` is private (docs/06 §1).
 library;
 
+export 'src/rules/builtin_rules.dart';
+export 'src/rules/policy.dart';
+export 'src/rules/rule_engine.dart';
 export 'src/scanner/extractors/ci_workflow_extractor.dart';
 export 'src/scanner/extractors/flutterx_yaml_extractor.dart';
 export 'src/scanner/extractors/fvm_extractor.dart';
