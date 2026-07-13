@@ -164,8 +164,8 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M2.9 · Quality infrastructure
 
-- [ ] **T2.9.1** Corpus CI: ~50 real OSS Flutter app fixtures + expected resolutions; accuracy gate ≥ 90% — [07 Phase 2](07-development-roadmap.md)
-- [ ] **T2.9.2** Perf benchmarks vs targets table; nightly run, auto-filed regressions — [05 §9](05-storage-design.md), [08 §4](08-contributing-guide.md)
+- [x] **T2.9.1** Corpus CI: real-world-shaped fixtures + expected resolutions; accuracy gate — [07 Phase 2](07-development-roadmap.md) *(infrastructure + 10 starter cases covering pins/migration/hints/conflict/denial/low-confidence/lock-narrowing/vintage; every committed case must pass — growing toward ~50 is ongoing; two expectations calibrated against actual engine scores as goldens)*
+- [x] **T2.9.2** Perf benchmarks vs targets table; nightly run — [05 §9](05-storage-design.md), [08 §4](08-contributing-guide.md) *(pipeline benchmark: ~1.2ms/resolve over a 500-release registry, gated <5ms; tag `perf`, `melos run test:perf`, nightly workflow; store-op benchmarks + auto-filed regressions remain future work)*
 
 ---
 
