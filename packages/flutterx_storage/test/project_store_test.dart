@@ -1,8 +1,3 @@
-@TestOn('!windows')
-// Symlink-based: Windows junction support (and these tests'
-// junction-aware equivalents) land with M1.11 (docs/09).
-library;
-
 import 'dart:io';
 
 import 'package:flutterx_domain/flutterx_domain.dart';
@@ -16,10 +11,26 @@ void main() {
   late FileProjectStore store;
   late Directory projectDir;
 
+  // Portable link helper: symlink on POSIX, junction on Windows —
+  // matching production HostPlatform.createLink (M1.11).
   Future<Result<void>> symlinkCreate({
     required String targetPath,
     required String linkPath,
   }) async {
+    if (Platform.isWindows) {
+      final r = await Process.run('cmd', [
+        '/c',
+        'mklink',
+        Directory(targetPath).existsSync() ? '/J' : '/H',
+        linkPath,
+        targetPath,
+      ]);
+      return r.exitCode == 0
+          ? const Result.ok(null)
+          : Result.err(
+              StorageFailure(code: 'FX-STORE-006', message: '${r.stderr}'),
+            );
+    }
     await Link(linkPath).create(targetPath);
     return const Result.ok(null);
   }

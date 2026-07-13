@@ -5,7 +5,46 @@ import 'package:path/path.dart' as p;
 
 /// Bump when the shim template changes — the installer rewrites any shim
 /// whose embedded version differs.
-const shimVersion = 2;
+const shimVersion = 3;
+
+/// Windows batch shim (docs/05 §8): same contract as [posixShim] — walk up
+/// to `.flutterx\sdk`, intercept store-mutating commands, exec passthrough
+/// with argv intact (`%*`); Ctrl-C reaches console children natively.
+String batchShim(String tool) =>
+    '''
+@echo off\r
+rem FlutterX shim v$shimVersion for '$tool' — generated; do not edit.\r
+setlocal\r
+\r
+if not "$tool"=="flutter" goto walkstart\r
+if defined FLUTTERX_UNMANAGED goto walkstart\r
+if /I "%~1"=="upgrade" goto intercept\r
+if /I "%~1"=="downgrade" goto intercept\r
+if /I "%~1"=="channel" goto intercept\r
+goto walkstart\r
+\r
+:intercept\r
+echo flutterx: 'flutter %~1' would mutate the managed SDK store. 1>&2\r
+echo   use 'flutterx upgrade' instead, or set FLUTTERX_UNMANAGED=1 1>&2\r
+exit /b 1\r
+\r
+:walkstart\r
+set "DIR=%CD%"\r
+:walk\r
+if exist "%DIR%\\.flutterx\\sdk\\bin\\$tool.bat" (\r
+  call "%DIR%\\.flutterx\\sdk\\bin\\$tool.bat" %*\r
+  exit /b %ERRORLEVEL%\r
+)\r
+for %%I in ("%DIR%\\..") do set "PARENT=%%~fI"\r
+if /I "%PARENT%"=="%DIR%" goto cold\r
+set "DIR=%PARENT%"\r
+goto walk\r
+\r
+:cold\r
+echo flutterx: no resolved SDK for this directory. 1>&2\r
+echo   run 'flutterx resolve' or 'flutterx use ^<version^>' 1>&2\r
+exit /b 1\r
+''';
 
 /// POSIX shim (docs/02 §8.3, ADR-6): pure fast path — walk up to the
 /// project's `.flutterx/sdk` link and exec the real tool. No intelligence,
@@ -83,30 +122,29 @@ final class ShimInstaller {
   static const tools = ['flutter', 'dart'];
 
   Future<Result<ShimStatus>> ensure() async {
-    if (Platform.isWindows) {
-      // Windows shims (.bat/.exe with junctions) land with M1.11.
-      return const Result.ok(ShimStatus(written: [], binDirOnPath: false));
-    }
     final written = <String>[];
     try {
       await Directory(binDir).create(recursive: true);
       for (final tool in tools) {
-        final file = File(p.join(binDir, tool));
-        final content = posixShim(tool);
+        final shimName = Platform.isWindows ? '$tool.bat' : tool;
+        final file = File(p.join(binDir, shimName));
+        final content = Platform.isWindows ? batchShim(tool) : posixShim(tool);
         if (file.existsSync() && await file.readAsString() == content) {
           continue;
         }
         await file.writeAsString(content);
-        final chmod = await Process.run('chmod', ['755', file.path]);
-        if (chmod.exitCode != 0) {
-          return Result.err(
-            StorageFailure(
-              code: 'FX-STORE-007',
-              message: 'cannot mark shim executable: ${chmod.stderr}',
-            ),
-          );
+        if (!Platform.isWindows) {
+          final chmod = await Process.run('chmod', ['755', file.path]);
+          if (chmod.exitCode != 0) {
+            return Result.err(
+              StorageFailure(
+                code: 'FX-STORE-007',
+                message: 'cannot mark shim executable: ${chmod.stderr}',
+              ),
+            );
+          }
         }
-        written.add(tool);
+        written.add(shimName);
       }
     } on FileSystemException catch (e) {
       return Result.err(
@@ -128,5 +166,7 @@ final class ShimInstaller {
   }
 
   /// The copy-pasteable PATH snippet doctor prints (docs/04 §3.7).
-  String pathGuidance() => 'export PATH="$binDir:\$PATH"';
+  String pathGuidance() => Platform.isWindows
+      ? 'setx PATH "$binDir;%PATH%"'
+      : 'export PATH="$binDir:\$PATH"';
 }

@@ -1,8 +1,3 @@
-@TestOn('!windows')
-// Symlink-based: Windows junction support (and these tests'
-// junction-aware equivalents) land with M1.11 (docs/09).
-library;
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -57,10 +52,26 @@ void main() {
   late StoreGc gc;
   final now = DateTime.utc(2026, 7, 13);
 
+  // Portable link helper: symlink on POSIX, junction on Windows —
+  // matching production HostPlatform.createLink (M1.11).
   Future<Result<void>> symlinkCreate({
     required String targetPath,
     required String linkPath,
   }) async {
+    if (Platform.isWindows) {
+      final r = await Process.run('cmd', [
+        '/c',
+        'mklink',
+        Directory(targetPath).existsSync() ? '/J' : '/H',
+        linkPath,
+        targetPath,
+      ]);
+      return r.exitCode == 0
+          ? const Result.ok(null)
+          : Result.err(
+              StorageFailure(code: 'FX-STORE-006', message: '${r.stderr}'),
+            );
+    }
     await Link(linkPath).create(targetPath);
     return const Result.ok(null);
   }
@@ -88,7 +99,11 @@ void main() {
       final project = Directory(referencedBy)..createSync(recursive: true);
       final flutterxDir = Directory(p.join(project.path, '.flutterx'))
         ..createSync();
-      await Link(p.join(flutterxDir.path, 'sdk')).create(dir.path);
+      final linked = await symlinkCreate(
+        targetPath: dir.path,
+        linkPath: p.join(flutterxDir.path, 'sdk'),
+      );
+      if (linked case Err(:final failure)) fail('$failure');
       final state = (await layout.loadState()).valueOrNull!;
       await layout.saveState(
         state.withProject(ProjectRef(path: project.path, version: version)),

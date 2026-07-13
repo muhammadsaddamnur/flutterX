@@ -34,12 +34,13 @@ Future<FlutterXCli> buildCli() async {
   await shimInstaller.ensure();
 
   final lock = StoreLock(layout.storeLockFile);
+  final hostPlatform = HostPlatform(storeHome: storeHome);
   final git = SystemGitEngine(bareRepoPath: layout.bareRepoDir);
   final downloads = DownloadManager(downloadsDir: layout.downloadsDir);
   final artifacts = ArtifactStore(
     layout: layout,
     downloads: downloads,
-    createLink: _createLink,
+    createLink: hostPlatform.createLink,
   );
   final journal = FileJournal(journalDir: layout.journalDir);
   final os = _hostOs();
@@ -65,7 +66,7 @@ Future<FlutterXCli> buildCli() async {
     projectStore: FileProjectStore(
       layout: layout,
       lock: lock,
-      createLink: _createLink,
+      createLink: hostPlatform.createLink,
     ),
     storeHealth: StoreHealth(layout: layout, git: git, journal: journal),
     platformHealth: PlatformHealth(shimInstaller: shimInstaller),
@@ -77,7 +78,7 @@ Future<FlutterXCli> buildCli() async {
       lock: lock,
     ),
     config: FileConfigStore(configFilePath: layout.configFile),
-    platform: HostPlatform(storeHome: storeHome),
+    platform: hostPlatform,
   );
 
   return FlutterXCli(
@@ -101,23 +102,3 @@ String _userHome() =>
     Platform.environment['HOME'] ??
     Platform.environment['USERPROFILE'] ??
     Directory.current.path;
-
-/// Interim link strategy until flutterx_platform lands (M1.7/M1.11):
-/// symlinks everywhere. Windows junctions and hardlink probing move into
-/// PlatformPort then.
-Future<Result<void>> _createLink({
-  required String targetPath,
-  required String linkPath,
-}) async {
-  try {
-    await Link(linkPath).create(targetPath, recursive: true);
-    return const Result.ok(null);
-  } on FileSystemException catch (e) {
-    return Result.err(
-      StorageFailure(
-        code: 'FX-STORE-006',
-        message: 'cannot link $linkPath → $targetPath: ${e.message}',
-      ),
-    );
-  }
-}

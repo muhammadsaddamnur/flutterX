@@ -56,18 +56,46 @@ final class HostPlatform implements PlatformPort {
     required String targetPath,
     required String linkPath,
   }) async {
-    try {
-      // Dart's Link.create issues junctions for directory links on
-      // Windows automatically; hardlink probing lands with M1.11.
-      await Link(linkPath).create(targetPath, recursive: true);
-      return const Result.ok(null);
-    } on FileSystemException catch (e) {
-      return Result.err(
-        StorageFailure(
-          code: 'FX-STORE-006',
-          message: 'cannot link $linkPath → $targetPath: ${e.message}',
-        ),
-      );
+    if (!Platform.isWindows) {
+      try {
+        await Link(linkPath).create(targetPath, recursive: true);
+        return const Result.ok(null);
+      } on FileSystemException catch (e) {
+        return _linkFailure(linkPath, targetPath, e.message);
+      }
     }
+
+    // Windows (docs/05 §8): junctions for directories (no privilege
+    // needed), hardlinks for files, copy as the last resort. Symlinks are
+    // avoided — they need Developer Mode or elevation.
+    final isDirectory = Directory(targetPath).existsSync();
+    final mklink = await Process.run('cmd', [
+      '/c',
+      'mklink',
+      isDirectory ? '/J' : '/H',
+      linkPath,
+      targetPath,
+    ]);
+    if (mklink.exitCode == 0) return const Result.ok(null);
+    if (!isDirectory) {
+      try {
+        await File(targetPath).copy(linkPath); // LinkMode.copy fallback
+        return const Result.ok(null);
+      } on FileSystemException catch (e) {
+        return _linkFailure(linkPath, targetPath, e.message);
+      }
+    }
+    return _linkFailure(linkPath, targetPath, '${mklink.stderr}'.trim());
   }
+
+  static Result<void> _linkFailure(
+    String linkPath,
+    String targetPath,
+    String detail,
+  ) => Result.err(
+    StorageFailure(
+      code: 'FX-STORE-006',
+      message: 'cannot link $linkPath → $targetPath: $detail',
+    ),
+  );
 }

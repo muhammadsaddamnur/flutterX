@@ -59,8 +59,14 @@ void main() {
   });
 
   test('ensureBareRepo creates a configured bare repo, idempotently', () async {
-    expect((await git.ensureBareRepo('file://$remotePath')).isOk, isTrue);
-    expect((await git.ensureBareRepo('file://$remotePath')).isOk, isTrue);
+    expect(
+      (await git.ensureBareRepo(Uri.directory(remotePath).toString())).isOk,
+      isTrue,
+    );
+    expect(
+      (await git.ensureBareRepo(Uri.directory(remotePath).toString())).isOk,
+      isTrue,
+    );
     final config = File(
       '${tmp.path}/store/flutter.git/config',
     ).readAsStringSync();
