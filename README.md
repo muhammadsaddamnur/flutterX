@@ -34,20 +34,39 @@ pins).
 - **git ≥ 2.30**
 - macOS or Linux (Windows: in progress)
 
-## Install (from source)
+## Install
+
+### Prebuilt binary (once a release is published)
+
+Downloads the right binary for your OS/arch from GitHub Releases,
+verifies its checksum, and installs it into `~/.flutterx/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/muhammadsaddamnur/flutterX/main/tool/install.sh | sh
+```
+
+Then add the store's bin dir to your PATH (also activates the transparent
+`flutter`/`dart` shims):
+
+```sh
+echo 'export PATH="$HOME/.flutterx/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+exec $SHELL
+flutterx doctor
+```
+
+FlutterX is distributed as native binaries via GitHub Releases — no Dart
+SDK required to run it.
+
+### From source
 
 ```sh
 git clone https://github.com/muhammadsaddamnur/flutterX.git
 cd flutterX
 dart pub get
 
-# Compile the CLI into the FlutterX store's bin dir:
 mkdir -p ~/.flutterx/bin
 dart compile exe packages/flutterx_cli/bin/flutterx.dart -o ~/.flutterx/bin/flutterx
-
-# Put the store's bin dir FIRST on PATH (also activates the
-# transparent `flutter`/`dart` shims):
-echo 'export PATH="$HOME/.flutterx/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+echo 'export PATH="$HOME/.flutterx/bin:$PATH"' >> ~/.zshrc
 exec $SHELL
 
 flutterx --version
@@ -57,6 +76,16 @@ flutterx doctor        # verifies git, store, shims, PATH order
 > Prefer not to compile? Run any command as
 > `dart run packages/flutterx_cli/bin/flutterx.dart <command>` from the
 > repo root.
+
+### Releasing (maintainers)
+
+Push a `v*` tag; the [release workflow](.github/workflows/release.yaml)
+compiles binaries for macOS (arm64/x64), Linux (x64), and Windows (x64)
+and attaches them to the GitHub Release with checksums:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 ## Quick start
 
