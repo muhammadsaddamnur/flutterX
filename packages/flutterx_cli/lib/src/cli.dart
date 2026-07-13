@@ -3,6 +3,7 @@ import 'package:flutterx_application/flutterx_application.dart';
 import 'package:flutterx_cli/src/commands/commands.dart';
 import 'package:flutterx_cli/src/exit_codes.dart';
 import 'package:flutterx_cli/src/output/console.dart';
+import 'package:flutterx_cli/src/output/progress_renderer.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
 
 /// The flutterx command-line interface (docs/04). Presentation only: maps
@@ -17,12 +18,19 @@ final class FlutterXCli {
     this.environment = const {},
     this.interactive = false,
     this.promptLine,
+    void Function(String)? errRaw,
+    this.progressInteractive = false,
   }) : _out = out,
-       _err = err;
+       _err = err,
+       _errRaw = errRaw;
 
   final FlutterXApi api;
   final void Function(String) _out;
   final void Function(String) _err;
+
+  /// Raw stderr writer (no newline) for the live progress line; null in
+  /// tests, where progress is not rendered.
+  final void Function(String)? _errRaw;
   final String workingDirectory;
 
   /// Host environment (PATH, SHELL) for the shell command — injected for
@@ -31,6 +39,10 @@ final class FlutterXCli {
 
   /// Whether stdin is a TTY; gates confirmation prompts (docs/04 §1.1).
   final bool interactive;
+
+  /// Whether stderr is a TTY; gates the live (carriage-return) progress
+  /// line versus plain per-phase lines.
+  final bool progressInteractive;
 
   /// Reads one line from the user; null when non-interactive.
   final String? Function()? promptLine;
@@ -130,6 +142,16 @@ final class FlutterXCli {
           : ExitCodes.ok;
     }
 
+    // Live progress is stderr-only and suppressed under --json; null in
+    // tests (no raw sink) → a no-op renderer.
+    final progress = (_errRaw == null || console.json)
+        ? null
+        : ProgressRenderer(
+            writeRaw: _errRaw,
+            interactive: progressInteractive,
+            color: !(results['no-color'] as bool),
+          );
+
     final spec = commandSpecs.firstWhere((c) => c.name == commandResults.name);
     return spec.run(
       CommandContext(
@@ -139,6 +161,7 @@ final class FlutterXCli {
         workingDirectory: workingDirectory,
         interactive: interactive,
         promptLine: promptLine,
+        progress: progress,
       ),
     );
   }

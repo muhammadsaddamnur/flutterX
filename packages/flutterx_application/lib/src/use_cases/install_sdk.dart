@@ -12,6 +12,7 @@ final class InstallSdk {
     String specifier, {
     InstallOptions options = const InstallOptions(),
     bool refreshRegistry = false,
+    ProgressReporter onProgress = noProgress,
   }) async {
     final snapshot = await _registry.snapshot(refresh: refreshRegistry);
     switch (snapshot) {
@@ -27,7 +28,11 @@ final class InstallSdk {
             ),
           );
         }
-        return _sdks.ensureInstalled(release, options: options);
+        return _sdks.ensureInstalled(
+          release,
+          options: options,
+          onProgress: onProgress,
+        );
     }
   }
 

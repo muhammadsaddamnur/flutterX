@@ -37,6 +37,7 @@ final class StoreSdkRepository implements SdkRepository {
   Future<Result<InstalledSdk>> ensureInstalled(
     FlutterRelease release, {
     InstallOptions options = const InstallOptions(),
+    ProgressReporter onProgress = noProgress,
   }) {
     return lock.withExclusive(() async {
       final version = release.version.toString();
@@ -84,17 +85,47 @@ final class StoreSdkRepository implements SdkRepository {
       // 1. objects
       await entry.stepStarted('fetch-tag');
       if (!await git.hasTag(release.gitTag)) {
-        final fetched = await git.fetchTag(release.gitTag);
+        onProgress(
+          ProgressEvent(
+            phase: 'download',
+            message: 'fetching Flutter $version objects…',
+          ),
+        );
+        final fetched = await git.fetchTag(
+          release.gitTag,
+          onProgress: onProgress,
+        );
         if (fetched case Err(:final failure)) return Result.err(failure);
       }
+      onProgress(
+        const ProgressEvent(
+          phase: 'download',
+          message: 'objects ready',
+          done: true,
+        ),
+      );
       await entry.stepDone('fetch-tag');
 
       // 2. working tree
       await entry.stepStarted('worktree-add');
       if (!Directory(versionDir).existsSync()) {
-        final added = await git.addWorktree(release.gitTag, versionDir);
+        onProgress(
+          const ProgressEvent(phase: 'checkout', message: 'checking out…'),
+        );
+        final added = await git.addWorktree(
+          release.gitTag,
+          versionDir,
+          onProgress: onProgress,
+        );
         if (added case Err(:final failure)) return Result.err(failure);
       }
+      onProgress(
+        const ProgressEvent(
+          phase: 'checkout',
+          message: 'worktree ready',
+          done: true,
+        ),
+      );
       await entry.stepDone('worktree-add');
 
       // 3. version stamp — what bin/flutter would write, without network
@@ -123,7 +154,10 @@ final class StoreSdkRepository implements SdkRepository {
       if (!options.skipArtifacts) {
         final wanted = release.artifacts[os];
         if (wanted != null) {
-          final ensuredArtifact = await artifacts.ensure(wanted);
+          final ensuredArtifact = await artifacts.ensure(
+            wanted,
+            onProgress: onProgress,
+          );
           if (ensuredArtifact case Err(:final failure)) {
             return Result.err(failure);
           }

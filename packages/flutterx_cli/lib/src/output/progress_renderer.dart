@@ -1,0 +1,61 @@
+import 'package:flutterx_domain/flutterx_domain.dart';
+
+/// Renders [ProgressEvent]s as a live status line (docs/04 §3.1 spinner
+/// output). Writes to stderr so stdout / `--json` stays clean.
+///
+/// On a TTY: a single line, updated in place (spinner + message + bar).
+/// Non-interactive (piped/CI): one plain line per phase transition — no
+/// carriage-return spam in logs.
+final class ProgressRenderer {
+  ProgressRenderer({
+    required this.writeRaw,
+    required this.interactive,
+    this.color = true,
+  });
+
+  /// Raw stderr writer — no trailing newline (the renderer controls
+  /// line breaks and carriage returns itself).
+  final void Function(String text) writeRaw;
+  final bool interactive;
+  final bool color;
+
+  static const _spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  var _tick = 0;
+  var _lastPhase = '';
+  var _active = false;
+
+  /// The [ProgressReporter] to hand to the use case.
+  void call(ProgressEvent event) {
+    if (!interactive) {
+      // Only announce phase changes; skip the noisy per-percent updates.
+      if (event.phase != _lastPhase && !event.done) {
+        writeRaw('  ${event.message}\n');
+        _lastPhase = event.phase;
+      }
+      return;
+    }
+
+    _active = true;
+    final spin = _dim(_spinner[_tick++ % _spinner.length]);
+    final bar = event.fraction == null
+        ? ''
+        : ' ${_bar(event.fraction!)} ${(event.fraction! * 100).round()}%';
+    // CR + clear-to-end-of-line, then the fresh status.
+    writeRaw('\r\x1B[2K$spin ${event.message}$bar');
+  }
+
+  /// Clears the live line — call once the operation finishes, before
+  /// printing the final result.
+  void finish() {
+    if (_active && interactive) writeRaw('\r\x1B[2K');
+    _active = false;
+  }
+
+  String _bar(double fraction) {
+    const width = 20;
+    final filled = (fraction.clamp(0, 1) * width).round();
+    return '[${'█' * filled}${'░' * (width - filled)}]';
+  }
+
+  String _dim(String text) => color ? '\x1B[90m$text\x1B[0m' : text;
+}

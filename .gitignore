@@ -13,6 +13,7 @@ coverage/
 *.iml
 .vscode/settings.json
 .obsidian/
+.docs/
 
 # OS
 .DS_Store

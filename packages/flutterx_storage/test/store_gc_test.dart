@@ -19,14 +19,20 @@ final class FakeGitEngine implements GitEngine {
   Future<bool> hasTag(String tag) async => true;
 
   @override
-  Future<Result<void>> fetchTag(String tag) async => const Result.ok(null);
+  Future<Result<void>> fetchTag(
+    String tag, {
+    ProgressReporter? onProgress,
+  }) async => const Result.ok(null);
 
   @override
   Future<Result<void>> refreshRemote() async => const Result.ok(null);
 
   @override
-  Future<Result<String>> addWorktree(String tag, String path) async =>
-      Result.ok(path);
+  Future<Result<String>> addWorktree(
+    String tag,
+    String path, {
+    ProgressReporter? onProgress,
+  }) async => Result.ok(path);
 
   @override
   Future<Result<void>> removeWorktree(String path) async {

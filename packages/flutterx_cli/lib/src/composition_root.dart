@@ -85,6 +85,11 @@ Future<FlutterXCli> buildCli() async {
     api: api,
     out: stdout.writeln,
     err: stderr.writeln,
+    // Only stream a live line when stderr is a real terminal; piped/CI
+    // stderr gets plain per-phase lines via the renderer's non-interactive
+    // path (still driven through errRaw).
+    errRaw: stderr.write,
+    progressInteractive: stderr.hasTerminal,
     workingDirectory: Directory.current.path,
     environment: Platform.environment,
     interactive: stdin.hasTerminal,

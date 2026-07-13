@@ -10,3 +10,4 @@ export 'src/commands/commands.dart';
 export 'src/composition_root.dart';
 export 'src/exit_codes.dart';
 export 'src/output/console.dart';
+export 'src/output/progress_renderer.dart';

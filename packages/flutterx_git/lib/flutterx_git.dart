@@ -6,4 +6,6 @@
 library;
 
 export 'src/git_engine.dart';
-export 'src/system_git_engine.dart' show RunProcess, SystemGitEngine;
+export 'src/git_progress.dart';
+export 'src/system_git_engine.dart'
+    show RunProcess, StartProcess, SystemGitEngine;

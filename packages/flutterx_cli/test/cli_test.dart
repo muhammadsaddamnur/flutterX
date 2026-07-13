@@ -32,6 +32,7 @@ final class FakeSdkRepository implements SdkRepository {
   Future<Result<InstalledSdk>> ensureInstalled(
     FlutterRelease release, {
     InstallOptions options = const InstallOptions(),
+    ProgressReporter onProgress = noProgress,
   }) async {
     if (failWith != null) return Result.err(failWith!);
     final sdk = InstalledSdk(

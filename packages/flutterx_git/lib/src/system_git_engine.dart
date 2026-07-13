@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutterx_domain/flutterx_domain.dart';
 import 'package:flutterx_git/src/git_engine.dart';
+import 'package:flutterx_git/src/git_progress.dart';
 import 'package:flutterx_git/src/git_stderr.dart';
 
 /// Minimal process-runner seam so unit tests can fake git without spawning
@@ -9,10 +11,21 @@ import 'package:flutterx_git/src/git_stderr.dart';
 typedef RunProcess =
     Future<ProcessResult> Function(String executable, List<String> arguments);
 
+/// Streaming-process seam for the slow phases (fetch/checkout) so their
+/// live `--progress` output can be surfaced. Defaults to [Process.start];
+/// unit tests never trigger it (they pass no reporter).
+typedef StartProcess =
+    Future<Process> Function(String executable, List<String> arguments);
+
 Future<ProcessResult> _defaultRunProcess(
   String executable,
   List<String> arguments,
 ) => Process.run(executable, arguments);
+
+Future<Process> _defaultStartProcess(
+  String executable,
+  List<String> arguments,
+) => Process.start(executable, arguments);
 
 /// [GitEngine] over the system git binary (docs/06 §5).
 ///
@@ -23,12 +36,14 @@ final class SystemGitEngine implements GitEngine {
     required this.bareRepoPath,
     this.gitExecutable = 'git',
     RunProcess? runProcess,
+    StartProcess? startProcess,
     this.retryDelays = const [
       Duration(seconds: 1),
       Duration(seconds: 2),
       Duration(seconds: 4),
     ],
-  }) : _run = runProcess ?? _defaultRunProcess;
+  }) : _run = runProcess ?? _defaultRunProcess,
+       _start = startProcess ?? _defaultStartProcess;
 
   static const minimumGitVersion = (major: 2, minor: 30);
 
@@ -43,6 +58,7 @@ final class SystemGitEngine implements GitEngine {
   final List<Duration> retryDelays;
 
   final RunProcess _run;
+  final StartProcess _start;
 
   bool _versionChecked = false;
 
@@ -90,19 +106,26 @@ final class SystemGitEngine implements GitEngine {
   }
 
   @override
-  Future<Result<void>> fetchTag(String tag) async {
+  Future<Result<void>> fetchTag(
+    String tag, {
+    ProgressReporter? onProgress,
+  }) async {
     final gate = await _ensureSupportedGit();
     if (gate case Err(:final failure)) return Result.err(failure);
 
     // Partial clone first; never shallow (docs/05 §4.1, ADR-2).
-    final partial = await _fetchWithRetry(tag, filter: true);
+    final partial = await _fetchWithRetry(
+      tag,
+      filter: true,
+      onProgress: onProgress,
+    );
     switch (partial) {
       case Ok():
         return partial;
       case Err(:final failure):
         if (failure.code != 'FX-GIT-003') return partial;
         // Server rejected the filter → full tag fetch fallback.
-        return _fetchWithRetry(tag, filter: false);
+        return _fetchWithRetry(tag, filter: false, onProgress: onProgress);
     }
   }
 
@@ -121,8 +144,16 @@ final class SystemGitEngine implements GitEngine {
   }
 
   @override
-  Future<Result<String>> addWorktree(String tag, String path) async {
-    final result = await _git([
+  Future<Result<String>> addWorktree(
+    String tag,
+    String path, {
+    ProgressReporter? onProgress,
+  }) async {
+    // `git worktree add` has no --progress flag; blob checkout progress
+    // isn't controllable over a pipe. The caller shows an indeterminate
+    // "checking out…" spinner around this — streaming still gives typed
+    // failures and catches any incidental "Updating files" lines.
+    final args = [
       '-C',
       bareRepoPath,
       'worktree',
@@ -130,7 +161,10 @@ final class SystemGitEngine implements GitEngine {
       '--detach',
       path,
       'refs/tags/$tag',
-    ]);
+    ];
+    final result = onProgress != null
+        ? await _streamGit(args, onProgress, phase: 'checkout')
+        : await _git(args);
     return result.map((_) => path);
   }
 
@@ -232,12 +266,14 @@ final class SystemGitEngine implements GitEngine {
   Future<Result<void>> _fetchWithRetry(
     String tag, {
     required bool filter,
+    ProgressReporter? onProgress,
   }) async {
     final args = [
       '-C',
       bareRepoPath,
       'fetch',
       if (filter) '--filter=blob:none',
+      if (onProgress != null) '--progress',
       '--no-write-fetch-head',
       'origin',
       'tag',
@@ -246,7 +282,9 @@ final class SystemGitEngine implements GitEngine {
     FxFailure? last;
     for (var attempt = 0; attempt <= retryDelays.length; attempt++) {
       if (attempt > 0) await Future<void>.delayed(retryDelays[attempt - 1]);
-      final result = await _git(args);
+      final result = onProgress != null
+          ? await _streamGit(args, onProgress, phase: 'download')
+          : await _git(args);
       switch (result) {
         case Ok():
           return result;
@@ -257,6 +295,44 @@ final class SystemGitEngine implements GitEngine {
       }
     }
     return Result.err(last!);
+  }
+
+  /// Runs git with `Process.start`, streaming stderr `--progress` lines to
+  /// [onProgress], and translating non-zero exits into typed failures like
+  /// [_git] does. The slow phases (fetch, checkout) route through here so
+  /// the CLI can show a live bar instead of appearing stuck.
+  Future<Result<void>> _streamGit(
+    List<String> args,
+    ProgressReporter onProgress, {
+    required String phase,
+  }) async {
+    final Process process;
+    try {
+      process = await _start(gitExecutable, args);
+    } on ProcessException catch (e) {
+      return Result.err(
+        GitFailure(code: 'FX-GIT-001', message: 'cannot run git: ${e.message}'),
+      );
+    }
+    final stderrBuffer = StringBuffer();
+    // git writes progress to stderr, CR-delimited during a phase.
+    final stderrDone = process.stderr.transform(utf8.decoder).listen((chunk) {
+      stderrBuffer.write(chunk);
+      for (final line in chunk.split(RegExp(r'[\r\n]'))) {
+        final event = parseGitProgressLine(line, phase: phase);
+        if (event != null) onProgress(event);
+      }
+    }).asFuture<void>();
+    await process.stdout.drain<void>();
+    final exitCode = await process.exitCode;
+    await stderrDone;
+    if (exitCode == 0) return const Result.ok(null);
+    final stderr = stderrBuffer.toString();
+    final command = args.firstWhere(
+      (a) => !a.startsWith('-') && a != bareRepoPath,
+      orElse: () => 'git',
+    );
+    return Result.err(failureFor(classifyGitStderr(stderr), command, stderr));
   }
 
   /// Runs git, translating non-zero exits into typed failures.

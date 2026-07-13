@@ -28,7 +28,10 @@ abstract interface class GitEngine {
   /// Fetches [tag] using partial clone (`--filter=blob:none`), falling back
   /// to a full tag fetch when the server rejects filters (docs/05 §4.1).
   /// Shallow fetches are never used. Transient network errors are retried.
-  Future<Result<void>> fetchTag(String tag);
+  ///
+  /// When [onProgress] is supplied, streams `git fetch --progress` so the
+  /// CLI can show a live bar (this is the slow phase — hundreds of MB).
+  Future<Result<void>> fetchTag(String tag, {ProgressReporter? onProgress});
 
   /// Refreshes all remote refs (blobless — refs only, cheap). Backs
   /// `flutterx cache refresh` (docs/04 §3.10). No-op success when the bare
@@ -36,8 +39,13 @@ abstract interface class GitEngine {
   Future<Result<void>> refreshRemote();
 
   /// Materializes [tag] as a detached worktree at [path] and returns the
-  /// path. Blobs missing from the partial clone are fetched on checkout.
-  Future<Result<String>> addWorktree(String tag, String path);
+  /// path. Blobs missing from the partial clone are fetched on checkout —
+  /// which is why [onProgress] matters here too.
+  Future<Result<String>> addWorktree(
+    String tag,
+    String path, {
+    ProgressReporter? onProgress,
+  });
 
   /// Removes the worktree at [path] via git porcelain (keeps bare-repo
   /// bookkeeping consistent, docs/05 §6.2) and prunes stale entries.

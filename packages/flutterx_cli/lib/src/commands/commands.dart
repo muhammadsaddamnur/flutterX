@@ -2,6 +2,7 @@ import 'package:args/args.dart';
 import 'package:flutterx_application/flutterx_application.dart';
 import 'package:flutterx_cli/src/exit_codes.dart';
 import 'package:flutterx_cli/src/output/console.dart';
+import 'package:flutterx_cli/src/output/progress_renderer.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
 import 'package:path/path.dart' as p;
 
@@ -14,6 +15,7 @@ final class CommandContext {
     required this.workingDirectory,
     this.interactive = false,
     this.promptLine,
+    this.progress,
   });
 
   final FlutterXApi api;
@@ -26,6 +28,15 @@ final class CommandContext {
 
   /// Reads one line from the user; null in non-interactive contexts.
   final String? Function()? promptLine;
+
+  /// Live progress renderer for long operations; null under `--json` or in
+  /// tests. Use [reportProgress] / [finishProgress] rather than touching it.
+  final ProgressRenderer? progress;
+
+  /// The reporter to hand a use case — a no-op when [progress] is absent.
+  ProgressReporter get reportProgress => progress?.call ?? noProgress;
+
+  void finishProgress() => progress?.finish();
 }
 
 /// One CLI command: name, help, flags, handler. Handlers only map
@@ -216,7 +227,9 @@ final commandSpecs = <CommandSpec>[
           skipArtifacts: ctx.args['skip-artifacts'] as bool,
         ),
         refreshRegistry: ctx.args['refresh'] as bool,
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
       switch (result) {
         case Err(:final failure):
           return fail(ctx.console, failure);

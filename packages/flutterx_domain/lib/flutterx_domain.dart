@@ -33,6 +33,7 @@ export 'src/ports/platform_port.dart';
 export 'src/ports/project_store.dart';
 export 'src/ports/registry_port.dart';
 export 'src/ports/sdk_repository.dart';
+export 'src/progress.dart';
 export 'src/result.dart';
 export 'src/values/channel.dart';
 export 'src/values/confidence.dart';

@@ -53,15 +53,36 @@ final class ArtifactStore {
   final DownloadManager downloads;
   final CreateLink createLink;
 
+  static String _mib(int bytes) =>
+      '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
+
   /// Ensures [artifact] exists in the CAS: download → verify → atomic move
   /// into place. Idempotent and safe under concurrent callers (the losing
   /// racer finds the entry committed and succeeds).
-  Future<Result<CasRef>> ensure(ArtifactRef artifact) async {
+  ///
+  /// [onProgress] receives download byte progress for live display.
+  Future<Result<CasRef>> ensure(
+    ArtifactRef artifact, {
+    ProgressReporter onProgress = noProgress,
+  }) async {
     final sha = artifact.sha256.toLowerCase();
     final ref = CasRef(sha256: sha, payloadPath: layout.casPayload(sha));
     if (File(ref.payloadPath).existsSync()) return Result.ok(ref);
 
-    final downloaded = await downloads.fetch(artifact.url, sha);
+    final downloaded = await downloads.fetch(
+      artifact.url,
+      sha,
+      onProgress: (received, total) => onProgress(
+        ProgressEvent(
+          phase: 'artifacts',
+          message: total == null
+              ? 'downloading engine artifact — ${_mib(received)}'
+              : 'downloading engine artifact — '
+                    '${_mib(received)} / ${_mib(total)}',
+          fraction: total == null || total == 0 ? null : received / total,
+        ),
+      ),
+    );
     switch (downloaded) {
       case Err(:final failure):
         return Result.err(failure);

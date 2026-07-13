@@ -1,6 +1,9 @@
 name: flutterx_workspace
 description: FlutterX monorepo workspace root. See docs/ for the design documentation.
 publish_to: none
+repository: https://github.com/muhammadsaddamnur/flutterX
+
+version: 0.0.1
 
 environment:
   sdk: ^3.9.0

@@ -1,5 +1,6 @@
 import 'package:flutterx_domain/src/entities/flutter_release.dart';
 import 'package:flutterx_domain/src/entities/installed_sdk.dart';
+import 'package:flutterx_domain/src/progress.dart';
 import 'package:flutterx_domain/src/result.dart';
 import 'package:flutterx_domain/src/values/sem_ver.dart';
 
@@ -26,9 +27,13 @@ final class InstallOptions {
 abstract interface class SdkRepository {
   /// Provisions [release] if missing (journaled, idempotent, resumable) and
   /// returns it. An already-installed release returns immediately.
+  ///
+  /// [onProgress] receives phase updates (fetch/checkout/download/…) for
+  /// live display; defaults to a no-op for non-interactive callers.
   Future<Result<InstalledSdk>> ensureInstalled(
     FlutterRelease release, {
     InstallOptions options = const InstallOptions(),
+    ProgressReporter onProgress = noProgress,
   });
 
   /// Removes the version's worktree. Fails with `ResourceInUse` when a
