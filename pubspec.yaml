@@ -36,7 +36,7 @@ melos:
       run: dart run tool/check_dependency_rule.dart
       description: Enforce the inward-only dependency rule (docs/06 §1, docs/08 §1).
     test:
-      run: melos exec --dir-exists=test -- dart test --exclude-tags="integration||live||perf"
+      run: melos exec --dir-exists=test -- dart test -x integration -x live -x perf
       description: Unit and use-case tests in every package.
     test:perf:
       run: melos exec --dir-exists=test/perf -- dart test --tags=perf test/perf
