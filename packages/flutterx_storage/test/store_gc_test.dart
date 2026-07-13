@@ -225,10 +225,13 @@ void main() {
 
       final report = (await gc.run(options())).valueOrNull!;
       expect(report.adoptedArtifacts, 1);
+      // Mechanism-independent: on POSIX the stray becomes a symlink, on
+      // Windows a hardlink (Link.existsSync() is symlink-only, so assert
+      // on content instead — the payload lives in the CAS and reads back).
       expect(
-        Link(stray.path).existsSync(),
-        isTrue,
-        reason: 'the stray became a link into the CAS',
+        File(stray.path).readAsStringSync(),
+        'engine bits from flutter precache',
+        reason: 'the stray still reads back via its CAS link',
       );
       expect(
         report.artifactsRemoved,

@@ -146,9 +146,18 @@ void main() {
       );
 
       expect((await store.linkSdk(project(), sdk)).isOk, isTrue);
-      final link = Link(p.join(projectDir.path, '.flutterx', 'sdk'));
-      expect(link.existsSync(), isTrue);
-      expect(link.targetSync(), sdkDir.path);
+      // Mechanism-independent (symlink on POSIX, junction on Windows):
+      // the link resolves to a directory equal to the SDK dir. targetSync()
+      // is symlink-only and unreliable for junctions.
+      final linkPath = p.join(projectDir.path, '.flutterx', 'sdk');
+      expect(
+        FileSystemEntity.typeSync(linkPath),
+        FileSystemEntityType.directory,
+      );
+      expect(
+        Directory(linkPath).resolveSymbolicLinksSync(),
+        sdkDir.resolveSymbolicLinksSync(),
+      );
 
       final state = (await layout.loadState()).valueOrNull!;
       expect(state.projects.single.path, projectDir.path);
