@@ -38,8 +38,16 @@ final class StoreGc {
       // 1. Live versions: validated project registry ∪ --keep.
       final live = <String>{...options.keep};
       for (final ref in state.valueOrNull!.projects) {
-        final link = Link(p.join(ref.path, '.flutterx', 'sdk'));
-        if (link.existsSync() && p.basename(link.targetSync()) == ref.version) {
+        final linkPath = p.join(ref.path, '.flutterx', 'sdk');
+        // typeSync (follows links) + resolveSymbolicLinksSync, not
+        // Link.targetSync()/p.canonicalize: Windows junctions don't always
+        // report as FileSystemEntityType.link, and canonicalize is
+        // lexical-only — it does not follow the reparse point (docs/05 §8;
+        // same fix as store_health.dart probeProject).
+        if (FileSystemEntity.typeSync(linkPath) ==
+                FileSystemEntityType.directory &&
+            p.basename(Directory(linkPath).resolveSymbolicLinksSync()) ==
+                ref.version) {
           live.add(ref.version);
         }
       }

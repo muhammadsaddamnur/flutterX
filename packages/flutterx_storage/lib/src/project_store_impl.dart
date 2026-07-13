@@ -168,10 +168,16 @@ final class FileProjectStore implements ProjectStore {
 
   @override
   Future<String?> resolvedSdkPath(Project project) async {
-    final link = Link(p.join(project.rootPath, '.flutterx', 'sdk'));
-    if (!link.existsSync()) return null;
-    final target = link.targetSync();
-    return Directory(target).existsSync() ? target : null;
+    final linkPath = p.join(project.rootPath, '.flutterx', 'sdk');
+    // Mechanism-independent (symlink/junction/whatever): if the path
+    // traverses to a directory, resolveSymbolicLinksSync follows the
+    // reparse point to the real target on every platform (unlike
+    // p.canonicalize, which is lexical-only). Dangling links type as
+    // notFound.
+    if (FileSystemEntity.typeSync(linkPath) != FileSystemEntityType.directory) {
+      return null;
+    }
+    return Directory(linkPath).resolveSymbolicLinksSync();
   }
 
   @override
@@ -179,8 +185,20 @@ final class FileProjectStore implements ProjectStore {
     return lock.withExclusive(() async {
       final linkPath = p.join(project.rootPath, '.flutterx', 'sdk');
       await Directory(p.dirname(linkPath)).create(recursive: true);
-      final existing = Link(linkPath);
-      if (existing.existsSync()) await existing.delete();
+      // Remove whatever is there — symlink, junction, or stale dir.
+      switch (FileSystemEntity.typeSync(linkPath, followLinks: false)) {
+        case FileSystemEntityType.link:
+          await Link(linkPath).delete();
+        case FileSystemEntityType.directory:
+          await Directory(linkPath).delete(); // junction reads as dir on
+        //                                       some platforms — not recursive:
+        //                                       a real dir here is a bug we
+        //                                       must not silently vaporize
+        case FileSystemEntityType.notFound:
+          break;
+        default:
+          await File(linkPath).delete();
+      }
       final linked = await createLink(targetPath: sdk.path, linkPath: linkPath);
       if (linked case Err(:final failure)) return Result.err(failure);
 

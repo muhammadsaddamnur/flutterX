@@ -189,13 +189,17 @@ final class StoreHealth implements StoreHealthPort {
       return probes;
     }
 
-    final link = Link(p.join(project.rootPath, '.flutterx', 'sdk'));
+    final linkPath = p.join(project.rootPath, '.flutterx', 'sdk');
+    // Mechanism-independent (symlink/junction/hardlink-dir): resolving via
+    // typeSync (follows links) rather than Link.targetSync() sidesteps
+    // Windows junctions not always reporting as FileSystemEntityType.link
+    // (docs/05 §8).
     final linkOk =
-        link.existsSync() && Directory(link.targetSync()).existsSync();
+        FileSystemEntity.typeSync(linkPath) == FileSystemEntityType.directory;
     probes.add(
       Probe(
         kind: 'project-link',
-        subject: link.path,
+        subject: linkPath,
         ok: linkOk,
         detail: linkOk ? null : 'missing or dangling (FX-R01)',
       ),
