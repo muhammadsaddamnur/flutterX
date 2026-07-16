@@ -173,6 +173,47 @@ final class FakeSim implements DependencySimPort {
   }
 }
 
+/// In-memory [Journal]: entries live in [uncommittedEntries] until a
+/// repair (or the operation itself) commits them.
+final class FakeJournal implements Journal {
+  final uncommittedEntries = <FakeJournalEntry>[];
+
+  @override
+  Future<Result<JournalEntry>> begin({
+    required String operation,
+    required String target,
+    required List<String> stepIds,
+  }) async {
+    final entry = FakeJournalEntry(operation, target);
+    uncommittedEntries.add(entry);
+    return Result.ok(entry);
+  }
+
+  @override
+  Future<List<JournalEntry>> uncommitted() async => [
+    ...uncommittedEntries.where((e) => !e.isCommitted),
+  ];
+}
+
+final class FakeJournalEntry implements JournalEntry {
+  FakeJournalEntry(this.operation, this.target);
+
+  @override
+  final String operation;
+  @override
+  final String target;
+  var isCommitted = false;
+
+  @override
+  Future<void> stepStarted(String stepId, {String? detail}) async {}
+
+  @override
+  Future<void> stepDone(String stepId) async {}
+
+  @override
+  Future<void> commit() async => isCommitted = true;
+}
+
 final class FakePlatform implements PlatformPort {
   final execCalls = <(String, List<String>, Map<String, String>?)>[];
   int exitCodeToReturn = 0;
@@ -216,14 +257,24 @@ final class FakeHealth implements StoreHealthPort, PlatformHealthPort {
     const Probe(kind: 'project-lock', subject: 'lock', ok: true),
   ];
 
+  /// When set, re-probes return these instead — models a fix that heals
+  /// the observation (repair re-probes to verify, docs/03 §9.2).
+  List<Probe>? storeProbesOnReprobe;
+  List<Probe>? platformProbesOnReprobe;
+  var _storeCalls = 0;
+  var _platformCalls = 0;
+
   @override
-  Future<List<Probe>> probeStore() async => storeProbes;
+  Future<List<Probe>> probeStore() async =>
+      ++_storeCalls > 1 ? (storeProbesOnReprobe ?? storeProbes) : storeProbes;
 
   @override
   Future<List<Probe>> probeProject(Project project) async => projectProbes;
 
   @override
-  Future<List<Probe>> probePlatform() async => platformProbes;
+  Future<List<Probe>> probePlatform() async => ++_platformCalls > 1
+      ? (platformProbesOnReprobe ?? platformProbes)
+      : platformProbes;
 }
 
 final class FakeCacheOps implements CacheOps {
@@ -241,6 +292,16 @@ final class FakeCacheOps implements CacheOps {
   Future<Result<void>> refreshGitObjects({
     ProgressReporter onProgress = noProgress,
   }) async => const Result.ok(null);
+
+  var recloneCalls = 0;
+
+  @override
+  Future<Result<void>> recloneBareRepo({
+    ProgressReporter onProgress = noProgress,
+  }) async {
+    recloneCalls++;
+    return const Result.ok(null);
+  }
 
   GcOptions? lastGcOptions;
   var gcReport = GcReport(
@@ -320,6 +381,7 @@ final class Harness {
   final cacheOps = FakeCacheOps();
   final platform = FakePlatform();
   final sim = FakeSim();
+  final journal = FakeJournal();
   final out = <String>[];
   final err = <String>[];
   var interactive = false;
@@ -338,6 +400,7 @@ final class Harness {
       storeHealth: health,
       platformHealth: health,
       cacheOps: cacheOps,
+      journal: journal,
       config: config,
       platform: platform,
       dependencySim: sim,
@@ -800,6 +863,162 @@ sdks:
       ];
       expect(await h.run(['repair', '--yes']), 15);
       expect(h.err.join('\n'), contains('FX-R03'));
+    });
+  });
+
+  group('repair — M3.2 catalogue (FX-R06…R09, R04 escalation)', () {
+    Probe brokenBareRepo() => const Probe(
+      kind: 'bare-repo',
+      subject: '/store/git',
+      ok: false,
+      detail: 'fsck errors',
+    );
+
+    test('FX-R04: refresh that heals needs no escalation', () async {
+      final h = Harness();
+      h.health.storeProbes = [brokenBareRepo()];
+      h.health.storeProbesOnReprobe = [
+        const Probe(kind: 'bare-repo', subject: '/store/git', ok: true),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('objects re-fetched from origin'));
+      expect(h.cacheOps.recloneCalls, 0);
+    });
+
+    test('FX-R04: still broken without --force → guidance, exit 15', () async {
+      final h = Harness();
+      h.health.storeProbes = [brokenBareRepo()];
+      expect(await h.run(['repair', '--yes']), 15);
+      expect(h.err.join('\n'), contains('--force'));
+      expect(h.cacheOps.recloneCalls, 0, reason: 'never without consent');
+    });
+
+    test('FX-R04: --force escalates to the destructive re-clone', () async {
+      final h = Harness();
+      h.health.storeProbes = [brokenBareRepo()];
+      expect(await h.run(['repair', '--yes', '--force']), 0);
+      expect(h.cacheOps.recloneCalls, 1);
+      expect(h.out.join('\n'), contains('re-cloned'));
+      expect(
+        h.out.join('\n'),
+        contains('run `flutterx repair` again'),
+        reason: 'worktrees need a second pass',
+      );
+    });
+
+    test('FX-R06: orphan delegates to gc (grace periods apply)', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'orphan-version', subject: '3.24.1', ok: false),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.cacheOps.lastGcOptions, isNotNull);
+      expect(h.cacheOps.lastGcOptions!.dryRun, isFalse);
+      expect(h.out.join('\n'), contains('orphan 3.24.1 reclaimed by gc'));
+    });
+
+    test('FX-R06: gc keeping the orphan is reported as grace', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'orphan-version', subject: '3.22.2', ok: false),
+      ];
+      // gcReport only reclaims 3.24.1 — 3.22.2 stays (grace).
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('3.22.2 kept (grace period)'));
+    });
+
+    test('FX-R07: shim drift heals via reinstall', () async {
+      final h = Harness();
+      h.health.platformProbes = [
+        const Probe(
+          kind: 'shims',
+          subject: '/store/bin',
+          ok: false,
+          detail: 'stale shim version',
+        ),
+      ];
+      h.health.platformProbesOnReprobe = [
+        const Probe(kind: 'shims', subject: '/store/bin', ok: true),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('shims reinstalled'));
+    });
+
+    test('FX-R07: PATH drift is guidance, never a profile edit', () async {
+      final h = Harness();
+      h.health.platformProbes = [
+        const Probe(
+          kind: 'path',
+          subject: '/store/bin',
+          ok: false,
+          detail: 'export PATH="/store/bin:\$PATH"',
+        ),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('skipped'));
+      expect(body, contains('export PATH'), reason: 'guidance shown');
+    });
+
+    test('FX-R08: interrupted install rolls forward and commits', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(
+          kind: 'journal-entry',
+          subject: 'install 3.22.2',
+          ok: false,
+        ),
+      ];
+      h.journal.uncommittedEntries.add(FakeJournalEntry('install', '3.22.2'));
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('rolled forward: install 3.22.2'));
+      expect(h.sdks.store.keys, contains('3.22.2'), reason: 'completed');
+      expect(h.journal.uncommittedEntries.single.isCommitted, isTrue);
+    });
+
+    test(
+      'FX-R08: interrupted remove rolls BACK (restores the version)',
+      () async {
+        final h = Harness();
+        h.health.storeProbes = [
+          const Probe(
+            kind: 'journal-entry',
+            subject: 'remove 3.22.2',
+            ok: false,
+          ),
+        ];
+        h.journal.uncommittedEntries.add(FakeJournalEntry('remove', '3.22.2'));
+        expect(await h.run(['repair', '--yes']), 0);
+        expect(h.out.join('\n'), contains('rolled back: 3.22.2 restored'));
+        expect(h.sdks.store.keys, contains('3.22.2'));
+        expect(h.journal.uncommittedEntries.single.isCommitted, isTrue);
+      },
+    );
+
+    test('FX-R08: interrupted gc rolls forward by re-running gc', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(kind: 'journal-entry', subject: 'gc store', ok: false),
+      ];
+      h.journal.uncommittedEntries.add(FakeJournalEntry('gc', 'store'));
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.cacheOps.lastGcOptions, isNotNull);
+      expect(h.journal.uncommittedEntries.single.isCommitted, isTrue);
+    });
+
+    test('FX-R09: version mismatch recheckouts the worktree', () async {
+      final h = Harness();
+      h.health.storeProbes = [
+        const Probe(
+          kind: 'version-mismatch',
+          subject: '3.22.2',
+          ok: false,
+          detail: 'version file says 3.19.6',
+        ),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.out.join('\n'), contains('re-checked out at tag 3.22.2'));
+      expect(h.sdks.store.keys, contains('3.22.2'));
     });
   });
 

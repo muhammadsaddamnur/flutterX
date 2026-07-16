@@ -17,6 +17,7 @@ final class StoreCacheOps implements CacheOps {
     required this.journal,
     required this.artifacts,
     required this.lock,
+    this.originUrl = 'https://github.com/flutter/flutter.git',
   }) : _gc = StoreGc(
          layout: layout,
          git: git,
@@ -30,6 +31,7 @@ final class StoreCacheOps implements CacheOps {
   final FileJournal journal;
   final ArtifactStore artifacts;
   final StoreLock lock;
+  final String originUrl;
   final StoreGc _gc;
 
   @override
@@ -79,6 +81,42 @@ final class StoreCacheOps implements CacheOps {
       ),
     );
     return git.refreshRemote();
+  }
+
+  @override
+  Future<Result<void>> recloneBareRepo({
+    ProgressReporter onProgress = noProgress,
+  }) {
+    // Journaled + exclusive: deleting the shared repo must never race an
+    // install, and an interruption must be visible (FX-R08 rolls forward
+    // by re-running the clone).
+    return lock.withExclusive(() async {
+      final begun = await journal.begin(
+        operation: 'reclone',
+        target: 'bare-repo',
+        stepIds: const ['delete', 'clone'],
+      );
+      if (begun case Err(:final failure)) return Result.err(failure);
+      final entry = begun.valueOrNull! as FileJournalEntry;
+
+      await entry.stepStarted('delete');
+      final dir = Directory(layout.bareRepoDir);
+      if (dir.existsSync()) await dir.delete(recursive: true);
+      await entry.stepDone('delete');
+
+      await entry.stepStarted('clone');
+      onProgress(
+        const ProgressEvent(
+          phase: 'clone',
+          message: 'Re-cloning the shared repository from origin…',
+        ),
+      );
+      final cloned = await git.ensureBareRepo(originUrl);
+      if (cloned case Err(:final failure)) return Result.err(failure);
+      await entry.stepDone('clone');
+      await entry.commit();
+      return const Result.ok(null);
+    });
   }
 
   @override

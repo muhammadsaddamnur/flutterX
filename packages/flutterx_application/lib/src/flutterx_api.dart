@@ -24,6 +24,7 @@ final class FlutterXApi {
     required StoreHealthPort storeHealth,
     required PlatformHealthPort platformHealth,
     required CacheOps cacheOps,
+    required Journal journal,
     required ConfigPort config,
     required PlatformPort platform,
     required DependencySimPort dependencySim,
@@ -62,10 +63,12 @@ final class FlutterXApi {
        ),
        repair = RepairEnvironment(
          storeHealth: storeHealth,
+         platformHealth: platformHealth,
          projects: projectStore,
          sdks: sdkRepository,
          registry: registry,
          cacheOps: cacheOps,
+         journal: journal,
          config: config,
          clock: clock ?? DateTime.now,
        );

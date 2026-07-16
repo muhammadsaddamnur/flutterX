@@ -77,6 +77,7 @@ Future<FlutterXCli> buildCli() async {
       artifacts: artifacts,
       lock: lock,
     ),
+    journal: journal,
     config: FileConfigStore(configFilePath: layout.configFile),
     platform: hostPlatform,
     dependencySim: PubDependencySimulator(),

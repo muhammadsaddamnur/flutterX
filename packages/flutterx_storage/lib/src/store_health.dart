@@ -85,8 +85,9 @@ final class StoreHealth implements StoreHealthPort {
         }
         // Worktree integrity: the version stamp and git link must exist —
         // their absence means files went missing (FX-R03).
+        final versionFile = File(p.join(dir.path, 'version'));
         final intact =
-            File(p.join(dir.path, 'version')).existsSync() &&
+            versionFile.existsSync() &&
             FileSystemEntity.typeSync(p.join(dir.path, '.git')) !=
                 FileSystemEntityType.notFound;
         probes.add(
@@ -97,6 +98,22 @@ final class StoreHealth implements StoreHealthPort {
             detail: intact ? null : 'worktree files missing (FX-R03)',
           ),
         );
+        // Version stamp vs the registry mapping the manifest recorded
+        // (FX-R09): a stamp naming a different version means the worktree
+        // is checked out at the wrong tag.
+        if (versionFile.existsSync()) {
+          final stamped = versionFile.readAsStringSync().trim();
+          if (stamped != version) {
+            probes.add(
+              Probe(
+                kind: 'version-mismatch',
+                subject: version,
+                ok: false,
+                detail: 'version file says $stamped (FX-R09)',
+              ),
+            );
+          }
+        }
         try {
           final manifest =
               jsonDecode(await manifestFile.readAsString())
@@ -130,19 +147,24 @@ final class StoreHealth implements StoreHealthPort {
       }
     }
 
-    // Interrupted operations (FX-R08).
+    // Interrupted operations (FX-R08): one probe per uncommitted entry so
+    // the planner can pick roll-forward/roll-back per operation; plus the
+    // aggregate all-clear when there are none.
     final uncommitted = await journal.uncommitted();
-    probes.add(
-      Probe(
-        kind: 'journal',
-        subject: layout.journalDir,
-        ok: uncommitted.isEmpty,
-        detail: uncommitted.isEmpty
-            ? null
-            : '${uncommitted.length} interrupted operation(s): '
-                  '${uncommitted.map((e) => '${e.operation} ${e.target}').join(', ')}',
-      ),
-    );
+    if (uncommitted.isEmpty) {
+      probes.add(Probe(kind: 'journal', subject: layout.journalDir, ok: true));
+    } else {
+      for (final entry in uncommitted) {
+        probes.add(
+          Probe(
+            kind: 'journal-entry',
+            subject: '${entry.operation} ${entry.target}',
+            ok: false,
+            detail: 'begun but never committed (FX-R08)',
+          ),
+        );
+      }
+    }
 
     // Orphaned versions (FX-R06): installed but referenced by no live
     // project.

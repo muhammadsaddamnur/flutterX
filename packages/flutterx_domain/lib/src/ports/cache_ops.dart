@@ -114,6 +114,14 @@ abstract interface class CacheOps {
     ProgressReporter onProgress = noProgress,
   });
 
+  /// FX-R04's destructive last resort (docs/03 §9.1): delete the bare
+  /// repository and re-clone it from origin. Existing worktrees lose their
+  /// backing store — a follow-up `repair` run recreates them (FX-R03).
+  /// Callers gate this behind explicit consent (`--force`).
+  Future<Result<void>> recloneBareRepo({
+    ProgressReporter onProgress = noProgress,
+  });
+
   /// The reference-counted collector (docs/05 §6.2): orphaned versions,
   /// unreferenced artifacts, stale downloads; adoption pass first.
   Future<Result<GcReport>> gc(

@@ -180,9 +180,9 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M3.2 · Repair completion
 
-- [ ] **T3.2.1** Diagnoses FX-R06…FX-R09 + executors — [03 §9.1](03-sdk-intelligence.md)
-- [ ] **T3.2.2** Journal recovery policy table: roll-forward (install/gc) vs roll-back (remove) — [05 §7](05-storage-design.md)
-- [ ] **T3.2.3** Crash-recovery E2E suite (kill at each journal step → repair → healthy) — [08 §4](08-contributing-guide.md)
+- [x] **T3.2.1** Diagnoses FX-R06…FX-R09 + executors — [03 §9.1](03-sdk-intelligence.md) *(FX-R06 delegates to gc, whose grace periods decide what is actually reclaimed — the "older than TTL" check lives there, not in the probe; FX-R07 PATH drift is guidance-only (repair never edits shell profiles); FX-R04 gained its destructive re-clone escalation: safe refresh first, re-probe, then `CacheOps.recloneBareRepo` behind `--force`, with a second repair run recreating worktrees. Deviation: the destructive gate now skips a diagnosis only when EVERY step is destructive, so mixed plans like FX-R04's still run their safe steps)*
+- [x] **T3.2.2** Journal recovery policy table: roll-forward (install/gc) vs roll-back (remove) — [05 §7](05-storage-design.md) *(pure `recoveryDirectionFor` in flutterx_intelligence; unknown ops default to roll-forward since every journaled operation is built from idempotent steps; roll-back for `remove` restores the version via `ensureInstalled` — the user re-runs `remove` deliberately afterwards; the journal entry is committed after recovery so FX-R08 clears. StoreHealth now emits one `journal-entry` probe per uncommitted entry so the planner can pick the direction per operation)*
+- [x] **T3.2.3** Crash-recovery E2E suite (kill at each journal step → repair → healthy) — [08 §4](08-contributing-guide.md) *(deviation: crash states are fabricated deterministically — an uncommitted journal at each install step plus the matching on-disk damage — instead of literally killing processes, which is flaky in CI; suite lives in flutterx_cli/test/integration since it wires application+storage+git together. Covers: install crash at manifest/version-stamp/artifacts/checkout → roll-forward; remove crash → roll-back restore; gc crash → re-run; FX-R09 wrong stamp → recheckout)*
 
 ### M3.3 · Workspace support
 
