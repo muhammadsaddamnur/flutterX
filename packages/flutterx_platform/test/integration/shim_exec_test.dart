@@ -74,16 +74,43 @@ void main() {
     expect(result.stdout, contains('fake-flutter'));
   });
 
-  test(
-    'unresolved directory → one-line hint, non-zero exit (cold path)',
-    () async {
-      final outside = Directory(p.join(tmp.path, 'elsewhere'))..createSync();
-      final result = await shim('flutter', ['run'], cwd: outside.path);
-      expect(result.exitCode, 1);
-      expect(result.stderr, contains('no resolved SDK'));
-      expect(result.stderr, contains('flutterx use'));
-    },
-  );
+  test('unresolved dir + no real tool on PATH → hint, non-zero exit '
+      '(cold path)', () async {
+    final outside = Directory(p.join(tmp.path, 'elsewhere'))..createSync();
+    final result = await shim(
+      'flutter',
+      ['run'],
+      cwd: outside.path,
+      // Controlled PATH: the shim dir + core utils only, so no real
+      // flutter can be found and the hint path is deterministic.
+      env: {'PATH': '$binDir:/usr/bin:/bin'},
+    );
+    expect(result.exitCode, 1);
+    expect(result.stderr, contains('no resolved SDK'));
+    expect(result.stderr, contains('flutterx use'));
+  });
+
+  test('unresolved dir falls through to the next real tool on PATH '
+      '(shim v4 — plain Dart repos keep working)', () async {
+    // A "system" flutter later on PATH than the shim dir.
+    final systemDir = Directory(p.join(tmp.path, 'systembin'))
+      ..createSync(recursive: true);
+    final systemTool = File(p.join(systemDir.path, 'flutter'));
+    await systemTool.writeAsString(
+      '#!/bin/sh\necho "system-flutter args:\$*"\n',
+    );
+    await Process.run('chmod', ['755', systemTool.path]);
+
+    final outside = Directory(p.join(tmp.path, 'elsewhere2'))..createSync();
+    final result = await shim(
+      'flutter',
+      ['--version'],
+      cwd: outside.path,
+      env: {'PATH': '$binDir:${systemDir.path}:/usr/bin:/bin'},
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(result.stdout, contains('system-flutter args:--version'));
+  });
 
   test(
     'flutter upgrade is intercepted in managed projects (docs/05 §4.3)',

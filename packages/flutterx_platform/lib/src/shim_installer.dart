@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 
 /// Bump when the shim template changes — the installer rewrites any shim
 /// whose embedded version differs.
-const shimVersion = 3;
+const shimVersion = 4;
 
 /// Windows batch shim (docs/05 §8): same contract as [posixShim] — walk up
 /// to `.flutterx\sdk`, intercept store-mutating commands, exec passthrough
@@ -41,7 +41,23 @@ set "DIR=%PARENT%"\r
 goto walk\r
 \r
 :cold\r
-echo flutterx: no resolved SDK for this directory. 1>&2\r
+rem Unresolved project: fall through to the next real '$tool' on PATH so\r
+rem non-FlutterX projects keep working; hint only when nothing is found.\r
+set "SELF_DIR=%~dp0"\r
+if "%SELF_DIR:~-1%"=="\\" set "SELF_DIR=%SELF_DIR:~0,-1%"\r
+for %%D in ("%PATH:;=" "%") do (\r
+  if /I not "%%~D"=="%SELF_DIR%" (\r
+    if exist "%%~D\\$tool.bat" (\r
+      call "%%~D\\$tool.bat" %*\r
+      exit /b %ERRORLEVEL%\r
+    )\r
+    if exist "%%~D\\$tool.exe" (\r
+      "%%~D\\$tool.exe" %*\r
+      exit /b %ERRORLEVEL%\r
+    )\r
+  )\r
+)\r
+echo flutterx: no resolved SDK for this directory (and no other '$tool' on PATH). 1>&2\r
 echo   run 'flutterx resolve' or 'flutterx use ^<version^>' 1>&2\r
 exit /b 1\r
 ''';
@@ -92,7 +108,21 @@ if [ -z "\${FLUTTERX_SHIM_RETRY:-}" ] && [ -x "\$flutterx_bin" ] && \\
   "\$flutterx_bin" resolve >&2 && FLUTTERX_SHIM_RETRY=1 exec "\$0" "\$@"
 fi
 
-echo "flutterx: no resolved SDK for this directory." >&2
+# Unresolved project: FlutterX has no opinion here — fall through to the
+# next real '$tool' on PATH so non-FlutterX projects (and plain Dart
+# repos) keep working. Only hint when there is nothing to fall back to.
+self_dir="\$(cd "\$(dirname "\$0")" && pwd)"
+old_ifs="\$IFS"; IFS=:
+for path_dir in \$PATH; do
+  [ "\$path_dir" = "\$self_dir" ] && continue
+  if [ -x "\$path_dir/$tool" ] && [ ! -d "\$path_dir/$tool" ]; then
+    IFS="\$old_ifs"
+    exec "\$path_dir/$tool" "\$@"
+  fi
+done
+IFS="\$old_ifs"
+
+echo "flutterx: no resolved SDK for this directory (and no other '$tool' on PATH)." >&2
 echo "  → run 'flutterx resolve' (automatic) or 'flutterx use <version>'" >&2
 exit 1
 ''';

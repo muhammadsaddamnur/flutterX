@@ -76,9 +76,45 @@ void main() {
 
   test('unresolved directory → hint, non-zero exit (cold path)', () async {
     final outside = Directory(p.join(tmp.path, 'elsewhere'))..createSync();
-    final result = await shim('flutter', ['run'], cwd: outside.path);
+    final result = await shim(
+      'flutter',
+      ['run'],
+      cwd: outside.path,
+      // Controlled PATH (shim dir + system dirs for cmd itself) so no real
+      // flutter is found and the hint path is deterministic (shim v4 falls
+      // through to the next tool on PATH otherwise).
+      env: {
+        'PATH':
+            '$binDir;${Platform.environment['SystemRoot']}\\System32;'
+            '${Platform.environment['SystemRoot']}',
+        'SystemRoot': Platform.environment['SystemRoot'] ?? r'C:\Windows',
+      },
+    );
     expect(result.exitCode, 1);
     expect(result.stderr, contains('no resolved SDK'));
+  });
+
+  test('unresolved dir falls through to the next real tool on PATH '
+      '(shim v4)', () async {
+    final systemDir = Directory(p.join(tmp.path, 'systembin'))
+      ..createSync(recursive: true);
+    await File(
+      p.join(systemDir.path, 'flutter.bat'),
+    ).writeAsString('@echo off\r\necho system-flutter args:%*\r\n');
+    final outside = Directory(p.join(tmp.path, 'elsewhere2'))..createSync();
+    final result = await shim(
+      'flutter',
+      ['--version'],
+      cwd: outside.path,
+      env: {
+        'PATH':
+            '$binDir;${systemDir.path};'
+            '${Platform.environment['SystemRoot']}\\System32',
+        'SystemRoot': Platform.environment['SystemRoot'] ?? r'C:\Windows',
+      },
+    );
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(result.stdout, contains('system-flutter args:--version'));
   });
 
   test('flutter upgrade is intercepted (docs/05 §4.3)', () async {
