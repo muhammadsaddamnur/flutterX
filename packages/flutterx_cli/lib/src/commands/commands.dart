@@ -686,6 +686,154 @@ final commandSpecs = <CommandSpec>[
     },
   ),
   CommandSpec(
+    name: 'workspace',
+    description: 'Monorepo management: one policy, many packages.',
+    configure: (parser) => parser..addFlag('parallel', negatable: false),
+    run: (ctx) async {
+      final rest = ctx.args.rest;
+      final sub = rest.isEmpty ? 'status' : rest.first;
+      switch (sub) {
+        case 'init':
+          final result = await ctx.api.workspace.init(ctx.workingDirectory);
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              if (ctx.console.json) {
+                ctx.console.emitJson(
+                  ok: true,
+                  data: {
+                    'root': value.rootPath,
+                    'globs': value.memberGlobs,
+                    'members': [for (final m in value.members) m.path],
+                  },
+                );
+                return ExitCodes.ok;
+              }
+              ctx.console.success(
+                'workspace initialized — globs: '
+                '${value.memberGlobs.join(', ')} '
+                '(${value.members.length} member(s) matched)',
+              );
+              return ExitCodes.ok;
+          }
+        case 'status':
+          final result = await ctx.api.workspace.status(ctx.workingDirectory);
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              final (workspace, rows) = value;
+              if (ctx.console.json) {
+                ctx.console.emitJson(
+                  ok: true,
+                  data: {
+                    'root': workspace.rootPath,
+                    'members': [
+                      for (final row in rows)
+                        {
+                          'path': row.path,
+                          'flutter': row.lockedVersion?.toString(),
+                        },
+                    ],
+                  },
+                );
+                return ExitCodes.ok;
+              }
+              ctx.console.write('Workspace: ${workspace.rootPath}');
+              ctx.console.table([
+                ['MEMBER', 'FLUTTER'],
+                for (final row in rows)
+                  [row.path, '${row.lockedVersion ?? 'unresolved'}'],
+              ]);
+              return ExitCodes.ok;
+          }
+        case 'resolve':
+          final result = await ctx.api.workspace.resolve(
+            ctx.workingDirectory,
+            parallel: ctx.args['parallel'] as bool,
+            onProgress: ctx.reportProgress,
+          );
+          ctx.finishProgress();
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              if (ctx.console.json) {
+                ctx.console.emitJson(
+                  ok: true,
+                  data: {
+                    'flutter': '${value.chosen.version}',
+                    'members': [
+                      for (final row in value.rows)
+                        {
+                          'path': row.path,
+                          'constraint': row.constraintText,
+                          'tightest': row.tightest,
+                        },
+                    ],
+                    'locksWritten': value.locksWritten,
+                  },
+                );
+                return ExitCodes.ok;
+              }
+              // The docs/04 §3.12 report shape.
+              ctx.console.write(
+                'Members: ${value.rows.map((r) => r.path).join(', ')} '
+                '(${value.rows.length})',
+              );
+              for (final warning in value.warnings) {
+                ctx.console.warn('$warning');
+              }
+              ctx.console.success(
+                'Intersection solve: Flutter ${value.chosen.version} '
+                'satisfies all members',
+              );
+              ctx.console.table([
+                for (final row in value.rows)
+                  [
+                    '  ${row.path}',
+                    row.constraintText,
+                    '✓${row.tightest ? '  ← tightest' : ''}',
+                  ],
+              ]);
+              ctx.console.success('${value.locksWritten} locks written');
+              return ExitCodes.ok;
+          }
+        case 'exec':
+          final argv = rest.sublist(1);
+          if (argv.isEmpty) {
+            ctx.console.writeError(
+              '✗ usage: flutterx workspace exec -- <command …>',
+            );
+            return ExitCodes.usage;
+          }
+          final result = await ctx.api.workspace.exec(
+            ctx.workingDirectory,
+            argv,
+          );
+          switch (result) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              final (exit, failedMember) = value;
+              if (failedMember != null) {
+                ctx.console.writeError(
+                  '✗ $failedMember: exited $exit — stopping',
+                );
+              }
+              // Contract class 20: the child's exit code, verbatim.
+              return exit;
+          }
+        default:
+          ctx.console.writeError(
+            '✗ usage: flutterx workspace <init|status|resolve|exec>',
+          );
+          return ExitCodes.usage;
+      }
+    },
+  ),
+  CommandSpec(
     name: 'repair',
     description: 'Diagnose and fix store/project problems.',
     configure: (parser) => parser

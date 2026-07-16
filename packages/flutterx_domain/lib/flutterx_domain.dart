@@ -24,6 +24,7 @@ export 'src/entities/recommendation.dart';
 export 'src/entities/registry_snapshot.dart';
 export 'src/entities/resolution.dart';
 export 'src/entities/upgrade_report.dart';
+export 'src/entities/workspace.dart';
 export 'src/failures/fx_failure.dart';
 export 'src/ports/cache_ops.dart';
 export 'src/ports/config_port.dart';

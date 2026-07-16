@@ -186,8 +186,8 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M3.3 · Workspace support
 
-- [ ] **T3.3.1** Root `flutterx.yaml` `workspace:` globs + member policy inheritance (tighten-only) — [04 §3.12](04-cli-specification.md), [03 §4.3](03-sdk-intelligence.md)
-- [ ] **T3.3.2** Intersection solve across members + per-member force report; empty intersection → exit 11 with conflicting pair — [04 §3.12](04-cli-specification.md)
+- [x] **T3.3.1** Root `flutterx.yaml` `workspace:` globs + member policy inheritance (tighten-only) — [04 §3.12](04-cli-specification.md), [03 §4.3](03-sdk-intelligence.md) *(globs support single-`*` path segments (`apps/*`), matching the docs' examples — full glob syntax deferred until needed; `rules:` in root/member flutterx.yaml flatten to `rules.<id>.<key>` and merge global → workspace → member through the existing tighten-only merger, loosening warned + ignored; `workspace init` discovers members at depth ≤2, generalizes to `parent/*` globs, appends to an existing flutterx.yaml without touching its pin)*
+- [x] **T3.3.2** Intersection solve across members + per-member force report; empty intersection → exit 11 with conflicting pair — [04 §3.12](04-cli-specification.md) *(single-sdk: per-member scan+solve (lock excluded as input), version-set intersection, per-member rule layers applied on the intersection, ranked on the members' combined evidence; report marks the smallest candidate set `← tightest`; empty intersection → ResolutionConflict naming the first pairwise-disjoint members — ResolutionConflict now renders its conflicting pair via `details` everywhere; `workspace exec` runs per member and stops at the first failure, exit code verbatim (class 20); `status`/`--json` included)*
 - [ ] **T3.3.3** `workspace init/status/resolve [--parallel]/exec` commands — [04 §3.12](04-cli-specification.md)
 
 ### M3.4 – M3.8 · Hardening

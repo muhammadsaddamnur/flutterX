@@ -49,6 +49,169 @@ final class FileProjectStore implements ProjectStore {
   }
 
   @override
+  Future<Workspace?> findWorkspace(String startDir) async {
+    var dir = Directory(startDir).absolute;
+    while (true) {
+      final file = File(p.join(dir.path, 'flutterx.yaml'));
+      if (file.existsSync()) {
+        final workspace = _parseWorkspace(dir.path, file);
+        if (workspace != null) return workspace;
+        // A plain project flutterx.yaml — keep walking up: the project
+        // may itself be a member of an enclosing workspace.
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) return null;
+      dir = parent;
+    }
+  }
+
+  Workspace? _parseWorkspace(String rootPath, File file) {
+    final Object? yaml;
+    try {
+      yaml = loadYaml(file.readAsStringSync());
+    } on YamlException {
+      return null; // malformed → scanner warnings handle it elsewhere
+    }
+    if (yaml is! YamlMap) return null;
+    final globsNode = yaml['workspace'];
+    if (globsNode is! YamlList) return null;
+    final globs = [for (final g in globsNode) g.toString()];
+
+    final members = <WorkspaceMember>[
+      for (final memberDir in _expandGlobs(rootPath, globs))
+        WorkspaceMember(
+          project: Project(rootPath: memberDir),
+          policySettings: _memberRules(memberDir),
+        ),
+    ];
+    return Workspace(
+      rootPath: rootPath,
+      memberGlobs: globs,
+      members: members,
+      policySettings: _flattenRules(yaml['rules']),
+    );
+  }
+
+  /// Expands `workspace:` globs (single-`*` path segments, docs/04 §3.12:
+  /// `apps/*`) to directories containing a `pubspec.yaml`, sorted for
+  /// determinism.
+  static List<String> _expandGlobs(String rootPath, List<String> globs) {
+    final matched = <String>{};
+    for (final glob in globs) {
+      var dirs = [rootPath];
+      for (final segment in glob.replaceAll(r'\', '/').split('/')) {
+        if (segment.isEmpty || segment == '.') continue;
+        final next = <String>[];
+        for (final dir in dirs) {
+          if (segment == '*') {
+            final entries = Directory(dir).existsSync()
+                ? Directory(dir).listSync()
+                : const <FileSystemEntity>[];
+            next.addAll([
+              for (final entry in entries)
+                if (entry is Directory &&
+                    !p.basename(entry.path).startsWith('.'))
+                  entry.path,
+            ]);
+          } else {
+            final candidate = p.join(dir, segment);
+            if (Directory(candidate).existsSync()) next.add(candidate);
+          }
+        }
+        dirs = next;
+      }
+      matched.addAll(
+        dirs.where((d) => File(p.join(d, 'pubspec.yaml')).existsSync()),
+      );
+    }
+    return matched.toList()..sort();
+  }
+
+  static Map<String, String> _memberRules(String memberDir) {
+    final file = File(p.join(memberDir, 'flutterx.yaml'));
+    if (!file.existsSync()) return const {};
+    try {
+      final yaml = loadYaml(file.readAsStringSync());
+      return yaml is YamlMap ? _flattenRules(yaml['rules']) : const {};
+    } on YamlException {
+      return const {};
+    }
+  }
+
+  /// Flattens a `rules:` YAML map to the `rules.<id>.<key>` dot notation
+  /// the policy merger consumes (docs/03 §4.3).
+  static Map<String, String> _flattenRules(Object? rules) {
+    if (rules is! YamlMap) return const {};
+    final flat = <String, String>{};
+    for (final rule in rules.entries) {
+      final settings = rule.value;
+      if (settings is! YamlMap) continue;
+      for (final setting in settings.entries) {
+        flat['rules.${rule.key}.${setting.key}'] = setting.value.toString();
+      }
+    }
+    return flat;
+  }
+
+  @override
+  Future<Result<Workspace>> initWorkspace(String rootPath) async {
+    final existing = await findWorkspace(rootPath);
+    if (existing != null &&
+        p.equals(existing.rootPath, Directory(rootPath).absolute.path)) {
+      return Result.ok(existing); // idempotent
+    }
+
+    // Discover member dirs: pubspec.yaml at depth 1–2, generalized to
+    // `parent/*` globs where siblings share a parent.
+    final globs = <String>{};
+    final root = Directory(rootPath).absolute;
+    for (final entry in root.listSync()) {
+      if (entry is! Directory || p.basename(entry.path).startsWith('.')) {
+        continue;
+      }
+      if (File(p.join(entry.path, 'pubspec.yaml')).existsSync()) {
+        globs.add(p.basename(entry.path));
+        continue;
+      }
+      for (final nested in entry.listSync()) {
+        if (nested is Directory &&
+            File(p.join(nested.path, 'pubspec.yaml')).existsSync()) {
+          globs.add('${p.basename(entry.path)}/*');
+        }
+      }
+    }
+    final memberGlobs = globs.isEmpty
+        ? ['apps/*', 'packages/*'] // starter template (docs/04 §3.12)
+        : (globs.toList()..sort());
+
+    final file = File(p.join(root.path, 'flutterx.yaml'));
+    final buffer = StringBuffer();
+    if (file.existsSync()) {
+      buffer.write(await file.readAsString());
+      if (!buffer.toString().endsWith('\n')) buffer.writeln();
+    } else {
+      buffer.writeln('# FlutterX workspace — hand-editable (docs/04 §3.12).');
+    }
+    buffer.writeln('workspace:');
+    for (final glob in memberGlobs) {
+      buffer.writeln('  - $glob');
+    }
+    await file.writeAsString(buffer.toString());
+
+    final workspace = await findWorkspace(root.path);
+    return workspace == null
+        ? const Result.err(
+            StorageFailure(
+              code: 'FX-STORE-011',
+              message:
+                  'workspace init wrote flutterx.yaml but it does not '
+                  'parse back — is an existing flutterx.yaml malformed?',
+            ),
+          )
+        : Result.ok(workspace);
+  }
+
+  @override
   Future<Result<void>> writePin(
     Project project, {
     String? pinVersion,

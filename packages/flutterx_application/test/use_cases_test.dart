@@ -56,6 +56,13 @@ final class StubProjects implements ProjectStore {
     Project project,
     Map<String, SemVer> bumps,
   ) async => const Result.ok([]);
+
+  @override
+  Future<Workspace?> findWorkspace(String startDir) async => null;
+
+  @override
+  Future<Result<Workspace>> initWorkspace(String rootPath) async =>
+      Result.ok(Workspace(rootPath: rootPath));
 }
 
 void main() {

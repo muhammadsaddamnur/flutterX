@@ -238,4 +238,110 @@ dependencies:
       expect(result.failureOrNull?.code, 'FX-STORE-005');
     });
   });
+
+  group('workspace (M3.3, docs/04 §3.12)', () {
+    late Directory wsRoot;
+
+    void member(String relative, {String? flutterxYaml}) {
+      final dir = Directory(p.join(wsRoot.path, relative))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'pubspec.yaml')).writeAsStringSync('name: m');
+      if (flutterxYaml != null) {
+        File(p.join(dir.path, 'flutterx.yaml')).writeAsStringSync(flutterxYaml);
+      }
+    }
+
+    setUp(() {
+      wsRoot = Directory(p.join(tmp.path, 'ws'))..createSync();
+    });
+
+    test('findWorkspace expands globs, reads root + member policy, '
+        'walks up from a member', () async {
+      File(p.join(wsRoot.path, 'flutterx.yaml')).writeAsStringSync('''
+workspace:
+  - apps/*
+  - packages/ui_kit
+rules:
+  channel-policy:
+    allow: stable
+''');
+      member(
+        'apps/shop',
+        flutterxYaml: '''
+rules:
+  min-version-floor:
+    version: 3.22.0
+''',
+      );
+      member('apps/admin');
+      member('packages/ui_kit');
+      Directory(
+        p.join(wsRoot.path, 'apps', 'not_a_pkg'),
+      ).createSync(recursive: true); // no pubspec → not a member
+
+      // From a member directory, not just the root.
+      final ws = await store.findWorkspace(p.join(wsRoot.path, 'apps', 'shop'));
+      expect(ws, isNotNull);
+      expect(p.equals(ws!.rootPath, wsRoot.path), isTrue);
+      expect(ws.members.map((m) => p.relative(m.path, from: ws.rootPath)), [
+        'apps/admin',
+        'apps/shop',
+        'packages/ui_kit',
+      ]);
+      expect(ws.policySettings, {'rules.channel-policy.allow': 'stable'});
+      final shop = ws.members.firstWhere((m) => m.path.endsWith('shop'));
+      expect(shop.policySettings, {
+        'rules.min-version-floor.version': '3.22.0',
+      });
+    });
+
+    test('a plain project flutterx.yaml is not a workspace', () async {
+      member('.', flutterxYaml: 'flutter: 3.22.2\n');
+      expect(await store.findWorkspace(wsRoot.path), isNull);
+    });
+
+    test('initWorkspace discovers members and generalizes to globs', () async {
+      member('apps/shop');
+      member('packages/ui_kit');
+      member('tool_pkg'); // depth-1 stays literal
+
+      final result = await store.initWorkspace(wsRoot.path);
+      expect(result.isOk, isTrue, reason: '${result.failureOrNull}');
+      final ws = result.valueOrNull!;
+      expect(ws.memberGlobs, ['apps/*', 'packages/*', 'tool_pkg']);
+      expect(ws.members, hasLength(3));
+
+      // Idempotent: a second init returns the same workspace, no rewrite.
+      final before = File(
+        p.join(wsRoot.path, 'flutterx.yaml'),
+      ).readAsStringSync();
+      expect((await store.initWorkspace(wsRoot.path)).isOk, isTrue);
+      expect(
+        File(p.join(wsRoot.path, 'flutterx.yaml')).readAsStringSync(),
+        before,
+      );
+    });
+
+    test('initWorkspace with no members writes the starter template', () async {
+      final result = await store.initWorkspace(wsRoot.path);
+      expect(result.valueOrNull!.memberGlobs, ['apps/*', 'packages/*']);
+    });
+
+    test(
+      'initWorkspace appends to an existing project flutterx.yaml',
+      () async {
+        File(
+          p.join(wsRoot.path, 'flutterx.yaml'),
+        ).writeAsStringSync('flutter: 3.22.2\n');
+        member('apps/shop');
+        final result = await store.initWorkspace(wsRoot.path);
+        expect(result.isOk, isTrue);
+        final body = File(
+          p.join(wsRoot.path, 'flutterx.yaml'),
+        ).readAsStringSync();
+        expect(body, contains('flutter: 3.22.2'), reason: 'pin preserved');
+        expect(body, contains('workspace:'));
+      },
+    );
+  });
 }

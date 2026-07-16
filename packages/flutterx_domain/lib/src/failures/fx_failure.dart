@@ -63,6 +63,11 @@ final class ResolutionConflict extends FxFailure {
   final String conflictingSourceB;
 
   @override
+  List<String> get details => [
+    'conflicts: $conflictingSourceA ↔ $conflictingSourceB',
+  ];
+
+  @override
   String get code => 'FX-SOLVE-002';
   @override
   final String message;

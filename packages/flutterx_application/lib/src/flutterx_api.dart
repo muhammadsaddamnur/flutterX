@@ -2,6 +2,7 @@ import 'package:flutterx_application/src/use_cases/install_sdk.dart';
 import 'package:flutterx_application/src/use_cases/list_sdks.dart';
 import 'package:flutterx_application/src/use_cases/manage_cache.dart';
 import 'package:flutterx_application/src/use_cases/manage_config.dart';
+import 'package:flutterx_application/src/use_cases/manage_workspace.dart';
 import 'package:flutterx_application/src/use_cases/proxy_exec.dart';
 import 'package:flutterx_application/src/use_cases/remove_sdk.dart';
 import 'package:flutterx_application/src/use_cases/repair_environment.dart';
@@ -61,6 +62,14 @@ final class FlutterXApi {
          platform: platform,
          clock: clock ?? DateTime.now,
        ),
+       workspace = ManageWorkspace(
+         projects: projectStore,
+         registry: registry,
+         sdks: sdkRepository,
+         config: config,
+         platform: platform,
+         clock: clock ?? DateTime.now,
+       ),
        repair = RepairEnvironment(
          storeHealth: storeHealth,
          platformHealth: platformHealth,
@@ -86,4 +95,5 @@ final class FlutterXApi {
   final ResolveProject resolve;
   final RepairEnvironment repair;
   final UpgradeSdk upgrade;
+  final ManageWorkspace workspace;
 }

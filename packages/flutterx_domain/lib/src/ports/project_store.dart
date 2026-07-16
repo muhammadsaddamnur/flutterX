@@ -2,6 +2,7 @@ import 'package:flutterx_domain/src/entities/evidence.dart';
 import 'package:flutterx_domain/src/entities/installed_sdk.dart';
 import 'package:flutterx_domain/src/entities/project.dart';
 import 'package:flutterx_domain/src/entities/resolution.dart';
+import 'package:flutterx_domain/src/entities/workspace.dart';
 import 'package:flutterx_domain/src/result.dart';
 import 'package:flutterx_domain/src/values/sem_ver.dart';
 
@@ -50,4 +51,16 @@ abstract interface class ProjectStore {
     Project project,
     Map<String, SemVer> bumps,
   );
+
+  /// Walks up from [startDir] to the nearest `flutterx.yaml` declaring
+  /// `workspace:` globs, expands them to member projects, and reads the
+  /// root's and each member's flattened policy settings (docs/04 §3.12).
+  /// `null` when not inside a workspace.
+  Future<Workspace?> findWorkspace(String startDir);
+
+  /// `workspace init` (docs/04 §3.12): writes (or extends) the root
+  /// `flutterx.yaml` with `workspace:` globs — discovered from directories
+  /// holding a `pubspec.yaml`, or a starter template when none exist yet —
+  /// and returns the resulting workspace.
+  Future<Result<Workspace>> initWorkspace(String rootPath);
 }

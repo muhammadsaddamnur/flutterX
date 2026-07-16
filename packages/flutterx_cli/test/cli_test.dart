@@ -109,6 +109,27 @@ final class FakeProjectStore implements ProjectStore {
   @override
   Future<Project?> findProject(String startDir) async => project;
 
+  /// Workspace fixtures: per-member evidence/locks keyed by rootPath.
+  Workspace? workspace;
+  final memberEvidence = <String, EvidenceFiles>{};
+  final memberLocks = <String, Resolution>{};
+  final linkedMembers = <String>[];
+  var initCalls = 0;
+
+  @override
+  Future<Workspace?> findWorkspace(String startDir) async => workspace;
+
+  @override
+  Future<Result<Workspace>> initWorkspace(String rootPath) async {
+    initCalls++;
+    return Result.ok(
+      workspace ??= Workspace(
+        rootPath: rootPath,
+        memberGlobs: const ['apps/*', 'packages/*'],
+      ),
+    );
+  }
+
   @override
   Future<Result<void>> writePin(
     Project project, {
@@ -120,20 +141,25 @@ final class FakeProjectStore implements ProjectStore {
   }
 
   @override
-  Future<EvidenceFiles> readEvidence(Project project) async => evidence;
+  Future<EvidenceFiles> readEvidence(Project project) async =>
+      memberEvidence[project.rootPath] ?? evidence;
 
   @override
-  Future<Resolution?> readLock(Project project) async => lock;
+  Future<Resolution?> readLock(Project project) async =>
+      memberLocks[project.rootPath] ?? lock;
 
   @override
   Future<Result<void>> writeLock(Project project, Resolution resolution) async {
     lock = resolution;
+    memberLocks[project.rootPath] = resolution;
     return const Result.ok(null);
   }
 
   @override
-  Future<Result<void>> linkSdk(Project project, InstalledSdk sdk) async =>
-      const Result.ok(null);
+  Future<Result<void>> linkSdk(Project project, InstalledSdk sdk) async {
+    linkedMembers.add(project.rootPath);
+    return const Result.ok(null);
+  }
 
   String? sdkPath;
 
@@ -1178,6 +1204,194 @@ sdks:
       expect(data['from'], '3.22.2');
       expect(data['to'], '3.24.1');
       expect(data['verdict'], 'safe');
+    });
+  });
+
+  group('workspace (docs/04 §3.12)', () {
+    Workspace twoMembers({
+      Map<String, String> rootPolicy = const {},
+      Map<String, String> shopPolicy = const {},
+    }) => Workspace(
+      rootPath: '/ws',
+      memberGlobs: const ['apps/*', 'packages/*'],
+      members: [
+        WorkspaceMember(
+          project: const Project(rootPath: '/ws/apps/shop'),
+          policySettings: shopPolicy,
+        ),
+        WorkspaceMember(
+          project: const Project(rootPath: '/ws/packages/ui_kit'),
+        ),
+      ],
+      policySettings: rootPolicy,
+    );
+
+    EvidenceFiles pubspecSdk(String constraint) => EvidenceFiles(
+      files: {'pubspec.yaml': 'name: m\nenvironment:\n  sdk: "$constraint"\n'},
+    );
+
+    test('outside a workspace → FX-STORE-010, exit 15', () async {
+      final h = Harness();
+      expect(await h.run(['workspace', 'status']), 15);
+      expect(h.err.join('\n'), contains('FX-STORE-010'));
+      expect(h.err.join('\n'), contains('workspace init'));
+    });
+
+    test('init writes the root globs', () async {
+      final h = Harness();
+      expect(await h.run(['workspace', 'init']), 0);
+      expect(h.projects.initCalls, 1);
+      expect(h.out.single, contains('apps/*, packages/*'));
+    });
+
+    test('status lists members with their lock state', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      h.projects.memberLocks['/ws/apps/shop'] = Resolution(
+        chosen: release('3.22.2'),
+        confidence: Confidence.high,
+        reasons: const [],
+        evidenceHash: 'sha256:x',
+        resolvedBy: ResolvedBy.use,
+        resolvedAt: DateTime.utc(2026, 7, 1),
+      );
+      expect(await h.run(['workspace', 'status']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('apps/shop'));
+      expect(body, contains('3.22.2'));
+      expect(body, contains('unresolved'), reason: 'ui_kit has no lock');
+    });
+
+    test('resolve: single-sdk intersection satisfies all members, '
+        'writes every lock, marks the tightest member', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      // shop needs Dart <3.5 → only 3.22.2; ui_kit is broad → both.
+      h.projects.memberEvidence['/ws/apps/shop'] = pubspecSdk('>=3.4.0 <3.5.0');
+      h.projects.memberEvidence['/ws/packages/ui_kit'] = pubspecSdk(
+        '>=3.3.0 <4.0.0',
+      );
+      expect(await h.run(['workspace', 'resolve']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('Members: apps/shop, packages/ui_kit (2)'));
+      expect(
+        body,
+        contains('Intersection solve: Flutter 3.22.2 satisfies all'),
+      );
+      expect(body, contains('← tightest'));
+      expect(body, contains('2 locks written'));
+      expect(
+        h.projects.memberLocks['/ws/apps/shop']?.chosen.version,
+        SemVer.parse('3.22.2'),
+      );
+      expect(
+        h.projects.memberLocks['/ws/packages/ui_kit']?.chosen.version,
+        SemVer.parse('3.22.2'),
+      );
+      expect(
+        h.projects.linkedMembers,
+        containsAll(['/ws/apps/shop', '/ws/packages/ui_kit']),
+      );
+      expect(h.sdks.store.keys, contains('3.22.2'), reason: 'provisioned');
+    });
+
+    test('resolve: --parallel takes the same path', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      h.projects.memberEvidence['/ws/apps/shop'] = pubspecSdk('>=3.3.0 <4.0.0');
+      h.projects.memberEvidence['/ws/packages/ui_kit'] = pubspecSdk(
+        '>=3.3.0 <4.0.0',
+      );
+      expect(await h.run(['workspace', 'resolve', '--parallel']), 0);
+      expect(h.out.join('\n'), contains('2 locks written'));
+    });
+
+    test('resolve: conflicting pins → exit 11 naming the pair', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      h.projects.memberEvidence['/ws/apps/shop'] = EvidenceFiles(
+        files: const {'flutterx.yaml': 'flutter: 3.22.2\n'},
+      );
+      h.projects.memberEvidence['/ws/packages/ui_kit'] = EvidenceFiles(
+        files: const {'flutterx.yaml': 'flutter: 3.24.1\n'},
+      );
+      expect(await h.run(['workspace', 'resolve']), 11);
+      final body = h.err.join('\n');
+      expect(body, contains('no single SDK satisfies'));
+      expect(body, contains('apps/shop (pin 3.22.2'));
+      expect(body, contains('packages/ui_kit (pin 3.24.1'));
+    });
+
+    test('member policy may only tighten the workspace layer '
+        '(loosening warned + ignored)', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers(
+        rootPolicy: const {'rules.channel-policy.allow': 'stable'},
+        shopPolicy: const {'rules.channel-policy.allow': 'any'},
+      );
+      h.projects.memberEvidence['/ws/apps/shop'] = pubspecSdk('>=3.3.0 <4.0.0');
+      h.projects.memberEvidence['/ws/packages/ui_kit'] = pubspecSdk(
+        '>=3.3.0 <4.0.0',
+      );
+      expect(await h.run(['workspace', 'resolve']), 0);
+      expect(
+        h.out.join('\n'),
+        contains('loosening-ignored'),
+        reason: 'the member tried to widen channel-policy',
+      );
+    });
+
+    test('exec runs in every member and stops at the first failure', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      // argv after `--` must pass through verbatim → runRaw, global flags
+      // up front (the harness's appended --no-color would leak into argv).
+      expect(
+        await h.runRaw([
+          '--no-color',
+          'workspace',
+          'exec',
+          '--',
+          'dart',
+          'analyze',
+        ]),
+        0,
+      );
+      expect(h.platform.execCalls, hasLength(2));
+      expect(h.platform.execCalls.first.$1, 'dart');
+      expect(h.platform.execCalls.first.$2, ['analyze']);
+
+      h.platform.execCalls.clear();
+      h.platform.exitCodeToReturn = 1;
+      expect(
+        await h.runRaw([
+          '--no-color',
+          'workspace',
+          'exec',
+          '--',
+          'dart',
+          'analyze',
+        ]),
+        1,
+        reason: 'contract class 20: the child exit code, verbatim',
+      );
+      expect(h.platform.execCalls, hasLength(1), reason: 'stopped');
+      expect(h.err.join('\n'), contains('apps/shop: exited 1'));
+    });
+
+    test('resolve --json emits the machine report', () async {
+      final h = Harness();
+      h.projects.workspace = twoMembers();
+      h.projects.memberEvidence['/ws/apps/shop'] = pubspecSdk('>=3.4.0 <3.5.0');
+      h.projects.memberEvidence['/ws/packages/ui_kit'] = pubspecSdk(
+        '>=3.3.0 <4.0.0',
+      );
+      expect(await h.run(['workspace', 'resolve', '--json']), 0);
+      final envelope = jsonDecode(h.out.single) as Map<String, Object?>;
+      expect(envelope['ok'], isTrue);
+      final data = envelope['data']! as Map;
+      expect(data['flutter'], '3.22.2');
+      expect(data['locksWritten'], 2);
     });
   });
 

@@ -16,6 +16,7 @@ export 'src/use_cases/install_sdk.dart';
 export 'src/use_cases/list_sdks.dart';
 export 'src/use_cases/manage_cache.dart';
 export 'src/use_cases/manage_config.dart';
+export 'src/use_cases/manage_workspace.dart';
 export 'src/use_cases/proxy_exec.dart';
 export 'src/use_cases/remove_sdk.dart';
 export 'src/use_cases/repair_environment.dart';
