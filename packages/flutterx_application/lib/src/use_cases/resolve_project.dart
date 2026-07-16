@@ -71,6 +71,7 @@ final class ResolveProject {
     bool acceptLow = false,
     bool refresh = false,
     bool matrix = false,
+    ProgressReporter onProgress = noProgress,
   }) async {
     final project = await _projects.findProject(cwd);
     if (project == null) {
@@ -88,6 +89,12 @@ final class ResolveProject {
     final evidence = _scanner().scan(files);
 
     // 2. Registry snapshot.
+    onProgress(
+      const ProgressEvent(
+        phase: 'registry',
+        message: 'Fetching release registry…',
+      ),
+    );
     final snapshotResult = await _registry.snapshot(refresh: refresh);
     if (snapshotResult case Err(:final failure)) return Result.err(failure);
     final snapshot = snapshotResult.valueOrNull!;
@@ -135,7 +142,17 @@ final class ResolveProject {
     //    blocked.
     final lockedPackages = parseLockedPackages(files['pubspec.lock'] ?? '');
     final metas = <String, PackageMeta?>{};
-    for (final package in lockedPackages.where((p) => p.hosted)) {
+    final hosted = lockedPackages.where((p) => p.hosted).toList();
+    for (final (index, package) in hosted.indexed) {
+      onProgress(
+        ProgressEvent(
+          phase: 'meta',
+          message:
+              'Checking package compatibility '
+              '(${index + 1}/${hosted.length}: ${package.name})…',
+          fraction: (index + 1) / hosted.length,
+        ),
+      );
       final meta = await _registry.packageMeta(package.name, package.version);
       metas['${package.name}@${package.version}'] = meta.valueOrNull;
     }
@@ -204,7 +221,10 @@ final class ResolveProject {
 
     // 7. Apply: provision + lock + link (docs/03 §7 flowchart tail).
     final chosen = recommendation.chosen.release;
-    final installedSdk = await _sdks.ensureInstalled(chosen);
+    final installedSdk = await _sdks.ensureInstalled(
+      chosen,
+      onProgress: onProgress,
+    );
     if (installedSdk case Err(:final failure)) return Result.err(failure);
 
     final resolution = Resolution(

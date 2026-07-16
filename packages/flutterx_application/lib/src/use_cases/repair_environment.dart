@@ -86,6 +86,7 @@ final class RepairEnvironment {
     Set<String>? only,
     bool allowDestructive = false,
     bool allowReResolve = false,
+    ProgressReporter onProgress = noProgress,
   }) async {
     final fixed = <String>[];
     final skipped = <String>[];
@@ -100,7 +101,17 @@ final class RepairEnvironment {
         skipped.add('${diagnosis.id}: destructive fix requires --force');
         continue;
       }
-      final result = await _fix(diagnosis, allowReResolve: allowReResolve);
+      onProgress(
+        ProgressEvent(
+          phase: 'repair-${diagnosis.id}',
+          message: 'Fixing ${diagnosis.id}: ${diagnosis.summary}…',
+        ),
+      );
+      final result = await _fix(
+        diagnosis,
+        allowReResolve: allowReResolve,
+        onProgress: onProgress,
+      );
       switch (result) {
         case Ok(:final value):
           value == null
@@ -117,6 +128,7 @@ final class RepairEnvironment {
   Future<Result<String?>> _fix(
     Diagnosis diagnosis, {
     required bool allowReResolve,
+    ProgressReporter onProgress = noProgress,
   }) async {
     switch (diagnosis.id) {
       case 'FX-R01': // broken project link → re-link from the lock
@@ -130,7 +142,11 @@ final class RepairEnvironment {
             ),
           );
         }
-        final ensured = await _ensureVersion(lock.chosen.version, force: false);
+        final ensured = await _ensureVersion(
+          lock.chosen.version,
+          force: false,
+          onProgress: onProgress,
+        );
         if (ensured case Err(:final failure)) return Result.err(failure);
         final linked = await _projects.linkSdk(project, ensured.valueOrNull!);
         if (linked case Err(:final failure)) return Result.err(failure);
@@ -140,7 +156,10 @@ final class RepairEnvironment {
         if (!allowReResolve) {
           return const Result.ok(null); // skipped: needs --yes (docs/03 §9.1)
         }
-        final resolved = await _resolve.execute(diagnosis.subject);
+        final resolved = await _resolve.execute(
+          diagnosis.subject,
+          onProgress: onProgress,
+        );
         return switch (resolved) {
           Ok(:final value) => Result.ok(
             're-resolved to ${value.recommendation.chosen.release.version}',
@@ -152,12 +171,18 @@ final class RepairEnvironment {
         final version = SemVer.parse(diagnosis.subject);
         final removed = await _sdks.remove(version, force: true);
         if (removed case Err(:final failure)) return Result.err(failure);
-        final ensured = await _ensureVersion(version, force: false);
+        final ensured = await _ensureVersion(
+          version,
+          force: false,
+          onProgress: onProgress,
+        );
         if (ensured case Err(:final failure)) return Result.err(failure);
         return Result.ok('worktree recreated');
 
       case 'FX-R04': // unhealthy bare repo → re-fetch objects
-        final refreshed = await _cacheOps.refreshGitObjects();
+        final refreshed = await _cacheOps.refreshGitObjects(
+          onProgress: onProgress,
+        );
         if (refreshed case Err(:final failure)) return Result.err(failure);
         return Result.ok('objects re-fetched from origin');
 
@@ -165,6 +190,7 @@ final class RepairEnvironment {
         final ensured = await _ensureVersion(
           SemVer.parse(diagnosis.subject),
           force: true,
+          onProgress: onProgress,
         );
         if (ensured case Err(:final failure)) return Result.err(failure);
         return Result.ok('artifacts re-downloaded');
@@ -177,6 +203,7 @@ final class RepairEnvironment {
   Future<Result<InstalledSdk>> _ensureVersion(
     SemVer version, {
     required bool force,
+    ProgressReporter onProgress = noProgress,
   }) async {
     final snapshot = await _registry.snapshot();
     if (snapshot case Err(:final failure)) return Result.err(failure);
@@ -187,6 +214,7 @@ final class RepairEnvironment {
     return _sdks.ensureInstalled(
       release,
       options: InstallOptions(force: force),
+      onProgress: onProgress,
     );
   }
 }

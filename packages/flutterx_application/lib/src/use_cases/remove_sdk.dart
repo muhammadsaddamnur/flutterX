@@ -7,7 +7,11 @@ final class RemoveSdk {
 
   final SdkRepository _sdks;
 
-  Future<Result<void>> execute(String specifier, {bool force = false}) async {
+  Future<Result<void>> execute(
+    String specifier, {
+    bool force = false,
+    ProgressReporter onProgress = noProgress,
+  }) async {
     final installed = await _sdks.installed();
     final matches = installed
         .where(
@@ -36,6 +40,13 @@ final class RemoveSdk {
         ),
       );
     }
+    // Worktree deletion walks thousands of files — worth a status line.
+    onProgress(
+      ProgressEvent(
+        phase: 'remove',
+        message: 'Removing Flutter ${matches.single.release.version}…',
+      ),
+    );
     return _sdks.remove(matches.single.release.version, force: force);
   }
 }

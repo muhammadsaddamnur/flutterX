@@ -13,11 +13,20 @@ final class ManageCache {
 
   /// Registry snapshot refresh + (unless [registryOnly]) a blobless refs
   /// refresh of the bare repo.
-  Future<Result<RegistrySnapshot>> refresh({bool registryOnly = false}) async {
+  Future<Result<RegistrySnapshot>> refresh({
+    bool registryOnly = false,
+    ProgressReporter onProgress = noProgress,
+  }) async {
+    onProgress(
+      const ProgressEvent(
+        phase: 'registry',
+        message: 'Refreshing release registry…',
+      ),
+    );
     final snapshot = await _registry.snapshot(refresh: true);
     if (snapshot case Err()) return snapshot;
     if (!registryOnly) {
-      final git = await _cacheOps.refreshGitObjects();
+      final git = await _cacheOps.refreshGitObjects(onProgress: onProgress);
       if (git case Err(:final failure)) return Result.err(failure);
     }
     return snapshot;
@@ -27,6 +36,7 @@ final class ManageCache {
     bool dryRun = false,
     bool aggressive = false,
     Set<String> keep = const {},
+    ProgressReporter onProgress = noProgress,
   }) => _cacheOps.gc(
     GcOptions(
       dryRun: dryRun,
@@ -34,9 +44,12 @@ final class ManageCache {
       keep: keep,
       now: _clock().toUtc(),
     ),
+    onProgress: onProgress,
   );
 
-  Future<CacheVerifyReport> verify() => _cacheOps.verify();
+  Future<CacheVerifyReport> verify({
+    ProgressReporter onProgress = noProgress,
+  }) => _cacheOps.verify(onProgress: onProgress);
 
   /// Opt-in auto-hygiene (docs/05 §6.3): when `gc.auto` is set, a dry-run
   /// sizes what is reclaimable; the CLI prints a one-line suggestion above

@@ -16,6 +16,9 @@ void main() {
       );
     });
 
+    // Every event starts the idle-animation timer; never leak it.
+    tearDown(() => renderer.finish());
+
     test('renders a spinner + message, overwriting in place with CR', () {
       renderer(const ProgressEvent(phase: 'download', message: 'fetching…'));
       expect(raw.single, startsWith('\r\x1B[2K'));
@@ -39,6 +42,35 @@ void main() {
       renderer(const ProgressEvent(phase: 'x', message: 'work'));
       renderer.finish();
       expect(raw.last, '\r\x1B[2K');
+    });
+
+    test('the spinner keeps animating between events (idle timer)', () async {
+      renderer(const ProgressEvent(phase: 'fetch', message: 'fetching…'));
+      final framesAtEvent = raw.length;
+      // No further events — the timer alone must keep redrawing so a
+      // long silent operation never looks stuck.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      renderer.finish();
+      expect(raw.length, greaterThan(framesAtEvent + 1));
+      expect(raw[framesAtEvent], contains('fetching…'));
+      // And the animation stops with finish.
+      final framesAtFinish = raw.length;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(raw.length, framesAtFinish);
+    });
+
+    test('a done event clears the line (terminal handoff)', () {
+      renderer(const ProgressEvent(phase: 'link', message: 'linking…'));
+      renderer(const ProgressEvent(phase: 'pub-get', message: '', done: true));
+      expect(raw.last, '\r\x1B[2K');
+    });
+
+    test('finish is idempotent', () {
+      renderer(const ProgressEvent(phase: 'x', message: 'work'));
+      renderer.finish();
+      final frames = raw.length;
+      renderer.finish();
+      expect(raw.length, frames, reason: 'second finish writes nothing');
     });
   });
 

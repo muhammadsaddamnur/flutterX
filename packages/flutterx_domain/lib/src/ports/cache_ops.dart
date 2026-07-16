@@ -1,3 +1,4 @@
+import 'package:flutterx_domain/src/progress.dart';
 import 'package:flutterx_domain/src/result.dart';
 
 /// Store size breakdown for `flutterx cache status` (docs/04 §3.10).
@@ -109,12 +110,17 @@ abstract interface class CacheOps {
 
   /// Refreshes the bare repo's refs from origin (blobless — cheap).
   /// A store without a bare repo yet is a no-op success.
-  Future<Result<void>> refreshGitObjects();
+  Future<Result<void>> refreshGitObjects({
+    ProgressReporter onProgress = noProgress,
+  });
 
   /// The reference-counted collector (docs/05 §6.2): orphaned versions,
   /// unreferenced artifacts, stale downloads; adoption pass first.
-  Future<Result<GcReport>> gc(GcOptions options);
+  Future<Result<GcReport>> gc(
+    GcOptions options, {
+    ProgressReporter onProgress = noProgress,
+  });
 
   /// Hash-audit every CAS payload + `git fsck` — read-only.
-  Future<CacheVerifyReport> verify();
+  Future<CacheVerifyReport> verify({ProgressReporter onProgress = noProgress});
 }

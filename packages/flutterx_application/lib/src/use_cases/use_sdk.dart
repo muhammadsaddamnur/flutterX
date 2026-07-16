@@ -28,6 +28,7 @@ final class UseSdk {
     String? specifier, {
     String? policyChannel,
     bool noInstall = false,
+    ProgressReporter onProgress = noProgress,
   }) async {
     final project = await _projects.findProject(projectDir);
     if (project == null) {
@@ -64,6 +65,12 @@ final class UseSdk {
       specifier = adoptedPin.version.toString();
     }
 
+    onProgress(
+      const ProgressEvent(
+        phase: 'registry',
+        message: 'Fetching release registry…',
+      ),
+    );
     final snapshot = await _registry.snapshot();
     if (snapshot case Err(:final failure)) return Result.err(failure);
     final release = snapshot.valueOrNull!.resolveSpecifier(specifier);
@@ -73,7 +80,10 @@ final class UseSdk {
 
     InstalledSdk? installed;
     if (!noInstall) {
-      final result = await _sdks.ensureInstalled(release);
+      final result = await _sdks.ensureInstalled(
+        release,
+        onProgress: onProgress,
+      );
       if (result case Err(:final failure)) return Result.err(failure);
       installed = result.valueOrNull;
     }

@@ -238,7 +238,9 @@ final class FakeCacheOps implements CacheOps {
   );
 
   @override
-  Future<Result<void>> refreshGitObjects() async => const Result.ok(null);
+  Future<Result<void>> refreshGitObjects({
+    ProgressReporter onProgress = noProgress,
+  }) async => const Result.ok(null);
 
   GcOptions? lastGcOptions;
   var gcReport = GcReport(
@@ -250,7 +252,10 @@ final class FakeCacheOps implements CacheOps {
   );
 
   @override
-  Future<Result<GcReport>> gc(GcOptions options) async {
+  Future<Result<GcReport>> gc(
+    GcOptions options, {
+    ProgressReporter onProgress = noProgress,
+  }) async {
     lastGcOptions = options;
     return Result.ok(
       GcReport(
@@ -265,8 +270,9 @@ final class FakeCacheOps implements CacheOps {
   }
 
   @override
-  Future<CacheVerifyReport> verify() async =>
-      CacheVerifyReport(checkedArtifacts: 3, gitHealthy: true);
+  Future<CacheVerifyReport> verify({
+    ProgressReporter onProgress = noProgress,
+  }) async => CacheVerifyReport(checkedArtifacts: 3, gitHealthy: true);
 }
 
 final class FakeConfig implements ConfigPort {
@@ -319,6 +325,11 @@ final class Harness {
   var interactive = false;
   final promptAnswers = <String>[];
 
+  /// Raw progress sink; events render as plain phase lines only when
+  /// [withProgress] is set (mirrors piped-stderr output).
+  final progressRaw = <String>[];
+  var withProgress = false;
+
   FlutterXCli cli() => FlutterXCli(
     api: FlutterXApi(
       sdkRepository: sdks,
@@ -338,6 +349,7 @@ final class Harness {
     environment: const {'SHELL': '/bin/zsh', 'PATH': '/usr/bin:/bin'},
     interactive: interactive,
     promptLine: () => promptAnswers.isEmpty ? null : promptAnswers.removeAt(0),
+    errRaw: withProgress ? progressRaw.add : null,
   );
 
   Future<int> run(List<String> args) => cli().run([...args, '--no-color']);
@@ -947,6 +959,80 @@ sdks:
       expect(data['from'], '3.22.2');
       expect(data['to'], '3.24.1');
       expect(data['verdict'], 'safe');
+    });
+  });
+
+  group('progress lines (loading feedback on every slow command)', () {
+    Harness withProgress() => Harness()..withProgress = true;
+
+    test('use announces the registry fetch', () async {
+      final h = withProgress();
+      h.projects.project = const Project(rootPath: '/work/app');
+      expect(await h.run(['use', '3.22.2']), 0);
+      expect(h.progressRaw.join(), contains('Fetching release registry…'));
+    });
+
+    test('resolve announces registry + per-package compatibility', () async {
+      final h = withProgress();
+      h.projects.project = const Project(rootPath: '/work/app');
+      h.projects.evidence = EvidenceFiles(
+        files: const {
+          'pubspec.yaml': 'name: app\nenvironment:\n  sdk: ">=3.4.0 <3.5.0"\n',
+          'pubspec.lock':
+              'packages:\n'
+              '  collection:\n'
+              '    source: hosted\n'
+              '    version: "1.19.0"\n',
+        },
+      );
+      expect(await h.run(['resolve']), 0);
+      final body = h.progressRaw.join();
+      expect(body, contains('Fetching release registry…'));
+      expect(body, contains('Checking package compatibility (1/1'));
+    });
+
+    test('upgrade announces the dependency simulation', () async {
+      final h = withProgress();
+      h.projects.project = const Project(rootPath: '/work/app');
+      await h.run(['use', '3.22.2']);
+      h.progressRaw.clear();
+      expect(await h.run(['upgrade', '--advise']), 0);
+      expect(
+        h.progressRaw.join(),
+        contains('Simulating dependency resolution on Flutter 3.24.1'),
+      );
+    });
+
+    test('list --remote and remove announce their slow steps', () async {
+      final h = withProgress();
+      expect(await h.run(['list', '--remote']), 0);
+      expect(h.progressRaw.join(), contains('Fetching release registry…'));
+
+      h.progressRaw.clear();
+      await h.run(['install', '3.22.2']);
+      h.progressRaw.clear();
+      expect(await h.run(['remove', '3.22.2']), 0);
+      expect(h.progressRaw.join(), contains('Removing Flutter 3.22.2…'));
+    });
+
+    test('cache verify and repair announce their phases', () async {
+      final h = withProgress();
+      expect(await h.run(['cache', 'verify']), 0);
+      // FakeCacheOps returns instantly; the phases come from the real
+      // impl — here we only assert repair's per-diagnosis line.
+      h.progressRaw.clear();
+      h.health.storeProbes = [
+        const Probe(kind: 'worktree', subject: '3.22.2', ok: false),
+      ];
+      expect(await h.run(['repair', '--yes']), 0);
+      expect(h.progressRaw.join(), contains('Fixing FX-R03'));
+    });
+
+    test('--json stays clean: no progress lines at all', () async {
+      final h = withProgress();
+      h.projects.project = const Project(rootPath: '/work/app');
+      expect(await h.run(['use', '3.22.2', '--json']), 0);
+      expect(h.progressRaw, isEmpty);
     });
   });
 

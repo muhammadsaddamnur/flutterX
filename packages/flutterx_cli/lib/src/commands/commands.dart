@@ -103,7 +103,9 @@ Future<int> runResolvePipeline(
     acceptLow: acceptLow,
     refresh: refresh,
     matrix: matrix,
+    onProgress: ctx.reportProgress,
   );
+  ctx.finishProgress();
 
   // TTY consent path: ask once, then re-run accepting low confidence.
   if (result case Err(
@@ -118,7 +120,9 @@ Future<int> runResolvePipeline(
         apply: apply,
         acceptLow: true,
         refresh: refresh,
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
     }
   }
 
@@ -271,7 +275,9 @@ final commandSpecs = <CommandSpec>[
       final result = await ctx.api.remove.execute(
         rest.single,
         force: ctx.args['force'] as bool,
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
       switch (result) {
         case Err(:final failure):
           return fail(ctx.console, failure);
@@ -297,7 +303,9 @@ final commandSpecs = <CommandSpec>[
         remote: ctx.args['remote'] as bool,
         filter: ctx.args.rest.isEmpty ? null : ctx.args.rest.single,
         channel: channelName == null ? null : Channel.tryParse(channelName),
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
       switch (result) {
         case Err(:final failure):
           return fail(ctx.console, failure);
@@ -374,7 +382,9 @@ final commandSpecs = <CommandSpec>[
         rest.isEmpty ? null : rest.single,
         policyChannel: ctx.args['policy'] as String?,
         noInstall: ctx.args['no-install'] as bool,
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
       switch (result) {
         case Err(:final failure):
           return fail(ctx.console, failure);
@@ -744,7 +754,9 @@ final commandSpecs = <CommandSpec>[
         // Destructive fixes need --force even under --yes (docs/03 §9.2).
         allowDestructive: ctx.args['force'] as bool,
         allowReResolve: yes || ctx.interactive,
+        onProgress: ctx.reportProgress,
       );
+      ctx.finishProgress();
 
       if (ctx.console.json) {
         ctx.console.emitJson(
@@ -796,7 +808,9 @@ final commandSpecs = <CommandSpec>[
                     .where((s) => s.isNotEmpty)
                     .toSet() ??
                 const {},
+            onProgress: ctx.reportProgress,
           );
+          ctx.finishProgress();
           switch (result) {
             case Err(:final failure):
               return fail(ctx.console, failure);
@@ -849,7 +863,10 @@ final commandSpecs = <CommandSpec>[
               return ExitCodes.ok;
           }
         case 'verify':
-          final report = await ctx.api.cache.verify();
+          final report = await ctx.api.cache.verify(
+            onProgress: ctx.reportProgress,
+          );
+          ctx.finishProgress();
           if (ctx.console.json) {
             ctx.console.emitJson(
               ok: report.healthy,
@@ -917,7 +934,9 @@ final commandSpecs = <CommandSpec>[
         case 'refresh':
           final result = await ctx.api.cache.refresh(
             registryOnly: ctx.args['registry-only'] as bool,
+            onProgress: ctx.reportProgress,
           );
+          ctx.finishProgress();
           switch (result) {
             case Err(:final failure):
               return fail(ctx.console, failure);

@@ -73,7 +73,7 @@ final class UpgradeSdk {
     String? targetSpecifier,
     ProgressReporter onProgress = noProgress,
   }) async {
-    final context = await _context(cwd);
+    final context = await _context(cwd, onProgress: onProgress);
     if (context case Err(:final failure)) return Result.err(failure);
     final (project, current, snapshot) = context.valueOrNull!;
 
@@ -132,6 +132,14 @@ final class UpgradeSdk {
       onProgress: onProgress,
     );
     if (installed case Err(:final failure)) return Result.err(failure);
+    onProgress(
+      ProgressEvent(
+        phase: 'simulate',
+        message:
+            'Simulating dependency resolution on Flutter '
+            '${target.version} (real pub solver)…',
+      ),
+    );
     final sim = await _sim.simulate(
       project: project,
       targetSdk: installed.valueOrNull!,
@@ -185,7 +193,7 @@ final class UpgradeSdk {
       );
     }
 
-    final context = await _context(cwd);
+    final context = await _context(cwd, onProgress: onProgress);
     if (context case Err(:final failure)) return Result.err(failure);
     final (project, _, snapshot) = context.valueOrNull!;
     final target = snapshot.find(report.to);
@@ -233,7 +241,10 @@ final class UpgradeSdk {
     final linked = await _projects.linkSdk(project, installed.valueOrNull!);
     if (linked case Err(:final failure)) return Result.err(failure);
 
-    // Post-apply `pub get` with the new SDK, streamed to the user.
+    // Post-apply `pub get` with the new SDK, streamed to the user. The
+    // done event clears any live progress line first — pub owns the
+    // terminal from here.
+    onProgress(const ProgressEvent(phase: 'pub-get', message: '', done: true));
     final pubGetExit = await _platform.exec(
       '${installed.valueOrNull!.path}/bin/dart',
       const ['pub', 'get'],
@@ -252,8 +263,9 @@ final class UpgradeSdk {
 
   /// Shared preamble: project + current release + snapshot.
   Future<Result<(Project, FlutterRelease, RegistrySnapshot)>> _context(
-    String cwd,
-  ) async {
+    String cwd, {
+    ProgressReporter onProgress = noProgress,
+  }) async {
     final project = await _projects.findProject(cwd);
     if (project == null) {
       return const Result.err(
@@ -273,6 +285,12 @@ final class UpgradeSdk {
         ),
       );
     }
+    onProgress(
+      const ProgressEvent(
+        phase: 'registry',
+        message: 'Fetching release registry…',
+      ),
+    );
     final snapshot = await _registry.snapshot();
     if (snapshot case Err(:final failure)) return Result.err(failure);
     // Prefer full registry data; fall back to the lock's reconstruction.

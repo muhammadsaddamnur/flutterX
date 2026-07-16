@@ -31,6 +31,7 @@ final class ListSdks {
     bool remote = false,
     String? filter,
     Channel? channel,
+    ProgressReporter onProgress = noProgress,
   }) async {
     if (!remote) {
       final installed = await _sdks.installed();
@@ -48,6 +49,12 @@ final class ListSdks {
       );
     }
 
+    onProgress(
+      const ProgressEvent(
+        phase: 'registry',
+        message: 'Fetching release registry…',
+      ),
+    );
     final snapshot = await _registry.snapshot();
     if (snapshot case Err(:final failure)) return Result.err(failure);
     final releases = snapshot.valueOrNull!.releases

@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutterx_domain/flutterx_domain.dart';
 
 /// Renders [ProgressEvent]s as a live status line (docs/04 §3.1 spinner
 /// output). Writes to stderr so stdout / `--json` stays clean.
 ///
 /// On a TTY: a single line, updated in place (spinner + message + bar).
-/// Non-interactive (piped/CI): one plain line per phase transition — no
-/// carriage-return spam in logs.
+/// The spinner keeps animating between events on a timer, so long silent
+/// operations (network fetches, hashing, `pub get --dry-run`) never look
+/// stuck. Non-interactive (piped/CI): one plain line per phase transition
+/// — no carriage-return spam in logs.
 final class ProgressRenderer {
   ProgressRenderer({
     required this.writeRaw,
@@ -23,6 +27,8 @@ final class ProgressRenderer {
   var _tick = 0;
   var _lastPhase = '';
   var _active = false;
+  ProgressEvent? _current;
+  Timer? _timer;
 
   /// The [ProgressReporter] to hand to the use case.
   void call(ProgressEvent event) {
@@ -35,6 +41,25 @@ final class ProgressRenderer {
       return;
     }
 
+    // A done event clears the line — used before handing the terminal to
+    // a child process (pub get, shells) so outputs don't collide.
+    if (event.done) {
+      finish();
+      return;
+    }
+
+    _current = event;
+    _render();
+    // Keep the spinner alive between events; cancelled by [finish].
+    _timer ??= Timer.periodic(
+      const Duration(milliseconds: 120),
+      (_) => _render(),
+    );
+  }
+
+  void _render() {
+    final event = _current;
+    if (event == null) return;
     _active = true;
     final spin = _dim(_spinner[_tick++ % _spinner.length]);
     final bar = event.fraction == null
@@ -44,9 +69,12 @@ final class ProgressRenderer {
     writeRaw('\r\x1B[2K$spin ${event.message}$bar');
   }
 
-  /// Clears the live line — call once the operation finishes, before
-  /// printing the final result.
+  /// Clears the live line and stops the animation timer — call once the
+  /// operation finishes, before printing the final result. Idempotent.
   void finish() {
+    _timer?.cancel();
+    _timer = null;
+    _current = null;
     if (_active && interactive) writeRaw('\r\x1B[2K');
     _active = false;
   }

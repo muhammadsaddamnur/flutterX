@@ -153,17 +153,24 @@ final class FlutterXCli {
           );
 
     final spec = commandSpecs.firstWhere((c) => c.name == commandResults.name);
-    return spec.run(
-      CommandContext(
-        api: api,
-        console: console,
-        args: commandResults,
-        workingDirectory: workingDirectory,
-        interactive: interactive,
-        promptLine: promptLine,
-        progress: progress,
-      ),
-    );
+    try {
+      return await spec.run(
+        CommandContext(
+          api: api,
+          console: console,
+          args: commandResults,
+          workingDirectory: workingDirectory,
+          interactive: interactive,
+          promptLine: promptLine,
+          progress: progress,
+        ),
+      );
+    } finally {
+      // Whatever path the command exits through, the live line is cleared
+      // and its animation timer stopped (a leaked timer would keep the
+      // process alive).
+      progress?.finish();
+    }
   }
 
   String _usage() {

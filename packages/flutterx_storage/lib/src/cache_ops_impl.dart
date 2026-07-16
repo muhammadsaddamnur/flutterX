@@ -69,14 +69,51 @@ final class StoreCacheOps implements CacheOps {
   }
 
   @override
-  Future<Result<void>> refreshGitObjects() => git.refreshRemote();
+  Future<Result<void>> refreshGitObjects({
+    ProgressReporter onProgress = noProgress,
+  }) {
+    onProgress(
+      const ProgressEvent(
+        phase: 'fetch',
+        message: 'Refreshing git objects from origin…',
+      ),
+    );
+    return git.refreshRemote();
+  }
 
   @override
-  Future<Result<GcReport>> gc(GcOptions options) => _gc.run(options);
+  Future<Result<GcReport>> gc(
+    GcOptions options, {
+    ProgressReporter onProgress = noProgress,
+  }) {
+    onProgress(
+      ProgressEvent(
+        phase: 'gc',
+        message: options.dryRun
+            ? 'Sizing reclaimable store space…'
+            : 'Collecting garbage…',
+      ),
+    );
+    return _gc.run(options);
+  }
 
   @override
-  Future<CacheVerifyReport> verify() async {
+  Future<CacheVerifyReport> verify({
+    ProgressReporter onProgress = noProgress,
+  }) async {
+    onProgress(
+      const ProgressEvent(
+        phase: 'verify-cas',
+        message: 'Hash-auditing artifact store…',
+      ),
+    );
     final cas = await artifacts.verify();
+    onProgress(
+      const ProgressEvent(
+        phase: 'verify-git',
+        message: 'Checking git object health (fsck)…',
+      ),
+    );
     final gitHealth = Directory(layout.bareRepoDir).existsSync()
         ? await git.fsck()
         : GitHealth(healthy: true);
