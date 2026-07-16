@@ -8,6 +8,7 @@ import 'package:flutterx_application/src/use_cases/repair_environment.dart';
 import 'package:flutterx_application/src/use_cases/resolve_project.dart';
 import 'package:flutterx_application/src/use_cases/run_doctor.dart';
 import 'package:flutterx_application/src/use_cases/show_current.dart';
+import 'package:flutterx_application/src/use_cases/upgrade_sdk.dart';
 import 'package:flutterx_application/src/use_cases/use_sdk.dart';
 import 'package:flutterx_domain/flutterx_domain.dart';
 import 'package:flutterx_intelligence/flutterx_intelligence.dart';
@@ -25,6 +26,7 @@ final class FlutterXApi {
     required CacheOps cacheOps,
     required ConfigPort config,
     required PlatformPort platform,
+    required DependencySimPort dependencySim,
     ProjectScanner? scanner,
     DateTime Function()? clock,
   }) : install = InstallSdk(sdkRepository, registry),
@@ -50,6 +52,14 @@ final class FlutterXApi {
          config: config,
          clock: clock ?? DateTime.now,
        ),
+       upgrade = UpgradeSdk(
+         projects: projectStore,
+         registry: registry,
+         sdks: sdkRepository,
+         sim: dependencySim,
+         platform: platform,
+         clock: clock ?? DateTime.now,
+       ),
        repair = RepairEnvironment(
          storeHealth: storeHealth,
          projects: projectStore,
@@ -72,4 +82,5 @@ final class FlutterXApi {
   final ShellExec shell;
   final ResolveProject resolve;
   final RepairEnvironment repair;
+  final UpgradeSdk upgrade;
 }

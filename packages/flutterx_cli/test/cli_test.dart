@@ -139,6 +139,38 @@ final class FakeProjectStore implements ProjectStore {
 
   @override
   Future<String?> resolvedSdkPath(Project project) async => sdkPath;
+
+  /// pubspec constraints "on disk" for bumpDependencies (name → constraint).
+  final pubspecDeps = <String, String>{};
+
+  @override
+  Future<Result<List<String>>> bumpDependencies(
+    Project project,
+    Map<String, SemVer> bumps,
+  ) async {
+    final changed = <String>[];
+    for (final bump in bumps.entries) {
+      if (pubspecDeps.containsKey(bump.key)) {
+        pubspecDeps[bump.key] = '^${bump.value}';
+        changed.add(bump.key);
+      }
+    }
+    return Result.ok(changed);
+  }
+}
+
+final class FakeSim implements DependencySimPort {
+  PubSimOutcome outcome = PubSimOutcome(unaffectedCount: 34);
+  InstalledSdk? lastTarget;
+
+  @override
+  Future<Result<PubSimOutcome>> simulate({
+    required Project project,
+    required InstalledSdk targetSdk,
+  }) async {
+    lastTarget = targetSdk;
+    return Result.ok(outcome);
+  }
 }
 
 final class FakePlatform implements PlatformPort {
@@ -281,6 +313,7 @@ final class Harness {
   final config = FakeConfig();
   final cacheOps = FakeCacheOps();
   final platform = FakePlatform();
+  final sim = FakeSim();
   final out = <String>[];
   final err = <String>[];
   var interactive = false;
@@ -296,6 +329,7 @@ final class Harness {
       cacheOps: cacheOps,
       config: config,
       platform: platform,
+      dependencySim: sim,
       clock: () => DateTime.utc(2026, 7, 11),
     ),
     out: out.add,
@@ -754,6 +788,165 @@ sdks:
       ];
       expect(await h.run(['repair', '--yes']), 15);
       expect(h.err.join('\n'), contains('FX-R03'));
+    });
+  });
+
+  group('upgrade', () {
+    /// A project resolved to 3.22.2 — 3.24.1 is the newest stable above it.
+    Future<Harness> resolvedAt3222() async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      await h.run(['use', '3.22.2']);
+      h.out.clear();
+      h.err.clear();
+      return h;
+    }
+
+    test('unresolved project → FX-STORE-008', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      expect(await h.run(['upgrade', '--advise']), 15);
+      expect(h.err.join('\n'), contains('FX-STORE-008'));
+    });
+
+    test('already on the newest stable → exit 0, nothing simulated', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      await h.run(['use', '3.24.1']);
+      h.out.clear();
+      expect(await h.run(['upgrade', '--advise']), 0);
+      expect(h.out.single, contains('already the newest'));
+      expect(h.sim.lastTarget, isNull);
+    });
+
+    test(
+      '--advise renders the docs/03 §8.2 report and applies nothing',
+      () async {
+        final h = await resolvedAt3222();
+        h.sim.outcome = PubSimOutcome(
+          unaffectedCount: 34,
+          needsBump: [
+            PackageImpact(
+              name: 'freezed',
+              currentVersion: SemVer.parse('2.4.7'),
+              suggestedVersion: SemVer.parse('2.5.2'),
+            ),
+          ],
+        );
+        expect(await h.run(['upgrade', '--advise']), 0);
+        final body = h.out.join('\n');
+        expect(
+          body,
+          contains('Upgrade plan: 3.22.2 → 3.24.1 (minor, Dart 3.4.3 → 3.5.1)'),
+        );
+        expect(body, contains('34 packages unaffected'));
+        expect(body, contains('freezed'));
+        expect(body, contains('2.4.7 → 2.5.2'));
+        expect(body, contains('Swift Package Manager'), reason: 'KB note');
+        expect(body, contains('Verdict: SAFE WITH CHANGES.'));
+        expect(body, contains('flutterx upgrade --to 3.24.1 --bump-deps'));
+        expect(h.sim.lastTarget?.release.version, SemVer.parse('3.24.1'));
+        expect(h.projects.pinnedVersion, '3.22.2', reason: 'advise-only');
+      },
+    );
+
+    test('blocking package → BLOCKED, exit 16', () async {
+      final h = await resolvedAt3222();
+      h.sim.outcome = PubSimOutcome(
+        resolvable: false,
+        blocking: [
+          PackageImpact(
+            name: 'legacy_pkg',
+            currentVersion: SemVer.parse('1.0.0'),
+            note: 'version solving failed',
+          ),
+        ],
+      );
+      expect(await h.run(['upgrade', '--advise']), 16);
+      final body = h.out.join('\n');
+      expect(body, contains('Verdict: BLOCKED.'));
+      expect(body, contains('remediation: review legacy_pkg'));
+      expect(h.err.join('\n'), contains('legacy_pkg'));
+    });
+
+    test('--yes applies: pin + lock + bump + pub get on the new SDK', () async {
+      final h = await resolvedAt3222();
+      h.projects.pubspecDeps['freezed'] = '^2.4.0';
+      h.sim.outcome = PubSimOutcome(
+        unaffectedCount: 34,
+        needsBump: [
+          PackageImpact(
+            name: 'freezed',
+            currentVersion: SemVer.parse('2.4.7'),
+            suggestedVersion: SemVer.parse('2.5.2'),
+          ),
+        ],
+      );
+      expect(await h.run(['upgrade', '--yes', '--bump-deps']), 0);
+      final body = h.out.join('\n');
+      expect(body, contains('upgraded to Flutter 3.24.1 — lock written'));
+      expect(body, contains('pubspec.yaml bumped: freezed'));
+      expect(body, contains('post-upgrade checklist'));
+      expect(h.projects.pinnedVersion, '3.24.1');
+      expect(h.projects.lock?.chosen.version, SemVer.parse('3.24.1'));
+      expect(h.projects.lock?.resolvedBy, ResolvedBy.use);
+      expect(h.projects.pubspecDeps['freezed'], '^2.5.2');
+      final (exe, args, env) = h.platform.execCalls.single;
+      expect(exe, '/store/versions/3.24.1/bin/dart');
+      expect(args, ['pub', 'get']);
+      expect(env?['FLUTTER_ROOT'], '/store/versions/3.24.1');
+    });
+
+    test('non-interactive without --yes refuses with exit 2', () async {
+      final h = await resolvedAt3222();
+      expect(await h.run(['upgrade']), 2);
+      expect(h.err.join('\n'), contains('--yes'));
+      expect(h.projects.pinnedVersion, '3.22.2', reason: 'unchanged');
+    });
+
+    test('interactive "n" at the confirm prompt changes nothing', () async {
+      final h = await resolvedAt3222();
+      h.interactive = true;
+      h.promptAnswers.add('n');
+      expect(await h.run(['upgrade']), 0);
+      expect(h.out.join('\n'), contains('nothing changed'));
+      expect(h.projects.pinnedVersion, '3.22.2', reason: 'unchanged');
+    });
+
+    test('--to below current warns DOWNGRADE', () async {
+      final h = Harness();
+      h.projects.project = const Project(rootPath: '/work/app');
+      await h.run(['use', '3.24.1']);
+      h.out.clear();
+      expect(await h.run(['upgrade', '--advise', '--to', '3.22.2']), 0);
+      expect(h.out.join('\n'), contains('DOWNGRADE'));
+    });
+
+    test('--to violating a hard constraint → conflict, exit 11', () async {
+      final h = await resolvedAt3222();
+      h.projects.evidence = EvidenceFiles(
+        files: const {
+          'pubspec.yaml': 'environment:\n  sdk: ">=3.0.0 <3.5.0"\n',
+        },
+      );
+      expect(await h.run(['upgrade', '--advise', '--to', '3.24.1']), 11);
+      expect(h.err.join('\n'), contains('violates'));
+    });
+
+    test('--to unknown version → exit 14', () async {
+      final h = await resolvedAt3222();
+      expect(await h.run(['upgrade', '--advise', '--to', '9.9.9']), 14);
+    });
+
+    test('--json emits the machine report', () async {
+      final h = await resolvedAt3222();
+      expect(await h.run(['upgrade', '--advise', '--json']), 0);
+      final json = jsonDecode(h.out.single) as Map<String, dynamic>;
+      expect(json['ok'], isTrue);
+      final data = json['data'] as Map<String, dynamic>;
+      expect(data['from'], '3.22.2');
+      expect(data['to'], '3.24.1');
+      expect(data['verdict'], 'safe');
     });
   });
 

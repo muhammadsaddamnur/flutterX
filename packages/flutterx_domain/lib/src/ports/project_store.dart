@@ -3,6 +3,7 @@ import 'package:flutterx_domain/src/entities/installed_sdk.dart';
 import 'package:flutterx_domain/src/entities/project.dart';
 import 'package:flutterx_domain/src/entities/resolution.dart';
 import 'package:flutterx_domain/src/result.dart';
+import 'package:flutterx_domain/src/values/sem_ver.dart';
 
 /// Project-side persistence port (docs/06 §2.1) — implemented in
 /// `flutterx_storage`.
@@ -40,4 +41,13 @@ abstract interface class ProjectStore {
   /// or `null` when unresolved or dangling. The proxy commands' fast path
   /// (docs/04 §3.13).
   Future<String?> resolvedSdkPath(Project project);
+
+  /// Rewrites the constraints of [bumps] (name → new version, becoming
+  /// `^version`) in the project's pubspec.yaml — `upgrade --bump-deps`
+  /// (docs/04 §3.9). Only direct dependencies present in the pubspec are
+  /// touched; returns the names actually changed.
+  Future<Result<List<String>>> bumpDependencies(
+    Project project,
+    Map<String, SemVer> bumps,
+  );
 }

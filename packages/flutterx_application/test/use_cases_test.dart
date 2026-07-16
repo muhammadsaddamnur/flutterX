@@ -50,6 +50,12 @@ final class StubProjects implements ProjectStore {
 
   @override
   Future<String?> resolvedSdkPath(Project project) async => null;
+
+  @override
+  Future<Result<List<String>>> bumpDependencies(
+    Project project,
+    Map<String, SemVer> bumps,
+  ) async => const Result.ok([]);
 }
 
 void main() {

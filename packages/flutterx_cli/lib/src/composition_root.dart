@@ -79,6 +79,7 @@ Future<FlutterXCli> buildCli() async {
     ),
     config: FileConfigStore(configFilePath: layout.configFile),
     platform: hostPlatform,
+    dependencySim: PubDependencySimulator(),
   );
 
   return FlutterXCli(

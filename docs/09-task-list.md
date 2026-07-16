@@ -173,10 +173,10 @@ Task ID format: `T<phase>.<milestone>.<n>` — e.g. `T1.3.2` = Phase 1, Mileston
 
 ### M3.1 · Upgrade Advisor
 
-- [ ] **T3.1.1** Deep-mode dependency simulation (`dart pub get --dry-run` in temp context, offline-first) in the application layer — [03 §6.1](03-sdk-intelligence.md), [06 §3](06-package-design.md)
-- [ ] **T3.1.2** `advise()` algorithm: sdk/dart delta, blocking/needsBump/unaffected, verdicts SAFE / SAFE_WITH_CHANGES / BLOCKED — [03 §8.1](03-sdk-intelligence.md)
-- [ ] **T3.1.3** Breaking-change knowledge-base format + lookup (`entriesBetween`) — [03 §8.1](03-sdk-intelligence.md)
-- [ ] **T3.1.4** `upgrade` command: `--advise/--to/--bump-deps/--yes/--dry-run`, journaled apply, exit 16, downgrade warnings — [04 §3.9](04-cli-specification.md), [03 §8.2](03-sdk-intelligence.md)
+- [x] **T3.1.1** Deep-mode dependency simulation (`dart pub get --dry-run` in temp context, offline-first) in the application layer — [03 §6.1](03-sdk-intelligence.md), [06 §3](06-package-design.md) *(deviation: the simulation runs a process, so it lives behind a new domain port `DependencySimPort` implemented in `flutterx_platform` (`PubDependencySimulator`) rather than in the application layer directly — same precedent as git stderr parsing living in `flutterx_git`; the application layer orchestrates and adapts `PubSimOutcome` → `DependencySimulation`)*
+- [x] **T3.1.2** `advise()` algorithm: sdk/dart delta, blocking/needsBump/unaffected, verdicts SAFE / SAFE_WITH_CHANGES / BLOCKED — [03 §8.1](03-sdk-intelligence.md) *(deviation: 03 §8.1's pseudocode disagrees with its own §8.2 worked example on verdicts; the example wins — blocking → BLOCKED, else needsBump → SAFE_WITH_CHANGES, else SAFE)*
+- [x] **T3.1.3** Breaking-change knowledge-base format + lookup (`entriesBetween`) — [03 §8.1](03-sdk-intelligence.md) *(seeded with the 3.10–3.29 majors; the full curated sweep is T3.8.x. `entriesBetween` is order-independent so downgrades surface what would be lost)*
+- [x] **T3.1.4** `upgrade` command: `--advise/--to/--bump-deps/--yes/--dry-run`, journaled apply, exit 16, downgrade warnings — [04 §3.9](04-cli-specification.md), [03 §8.2](03-sdk-intelligence.md) *(apply = pin + lock + link + optional pubspec bumps + post `pub get` on the new SDK; the pin/lock/link writes are individually atomic — a dedicated apply-journal entry was unnecessary since `repair` FX-R01 already reconciles a torn link)*
 
 ### M3.2 · Repair completion
 

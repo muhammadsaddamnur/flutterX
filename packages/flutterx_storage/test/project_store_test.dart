@@ -168,4 +168,74 @@ void main() {
       expect((await layout.loadState()).valueOrNull!.projects, hasLength(1));
     },
   );
+
+  group('bumpDependencies (M3.1, upgrade --bump-deps)', () {
+    test(
+      'rewrites only the named constraints, preserving everything else',
+      () async {
+        final pubspec = File(p.join(projectDir.path, 'pubspec.yaml'))
+          ..writeAsStringSync('''
+name: app
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  freezed: ^2.4.7 # pinned for codegen
+  collection: 1.19.0
+  my_local:
+    path: ../my_local
+
+dev_dependencies:
+  build_runner: ">=2.4.0 <2.5.0"
+''');
+
+        final result = await store.bumpDependencies(project(), {
+          'freezed': SemVer.parse('2.5.2'),
+          'build_runner': SemVer.parse('2.4.11'),
+          'not_a_dep': SemVer.parse('9.9.9'),
+        });
+        expect(
+          result.valueOrNull,
+          unorderedEquals(['freezed', 'build_runner']),
+        );
+
+        final body = pubspec.readAsStringSync();
+        expect(
+          body,
+          contains('  freezed: ^2.5.2 # pinned for codegen'),
+          reason: 'inline comments survive the rewrite',
+        );
+        expect(body, contains('  build_runner: ^2.4.11'));
+        expect(body, contains('  collection: 1.19.0'), reason: 'untouched');
+        expect(body, contains('  sdk: ">=3.4.0 <4.0.0"'), reason: 'env kept');
+        expect(
+          body,
+          contains('  my_local:\n    path: ../my_local'),
+          reason: 'bare-map deps (path/git) are never clobbered',
+        );
+      },
+    );
+
+    test(
+      'bare-map dependency named in bumps is skipped, not clobbered',
+      () async {
+        File(p.join(projectDir.path, 'pubspec.yaml')).writeAsStringSync('''
+dependencies:
+  my_local:
+    path: ../my_local
+''');
+        final result = await store.bumpDependencies(project(), {
+          'my_local': SemVer.parse('1.0.0'),
+        });
+        expect(result.valueOrNull, isEmpty);
+      },
+    );
+
+    test('missing pubspec.yaml → FX-STORE-005', () async {
+      final result = await store.bumpDependencies(project(), {
+        'freezed': SemVer.parse('2.5.2'),
+      });
+      expect(result.failureOrNull?.code, 'FX-STORE-005');
+    });
+  });
 }

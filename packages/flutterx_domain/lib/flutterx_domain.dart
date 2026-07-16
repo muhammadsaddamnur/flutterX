@@ -27,6 +27,7 @@ export 'src/entities/upgrade_report.dart';
 export 'src/failures/fx_failure.dart';
 export 'src/ports/cache_ops.dart';
 export 'src/ports/config_port.dart';
+export 'src/ports/dependency_sim_port.dart';
 export 'src/ports/health_ports.dart';
 export 'src/ports/journal.dart';
 export 'src/ports/platform_port.dart';

@@ -181,6 +181,40 @@ final class FileProjectStore implements ProjectStore {
   }
 
   @override
+  Future<Result<List<String>>> bumpDependencies(
+    Project project,
+    Map<String, SemVer> bumps,
+  ) async {
+    final file = File(p.join(project.rootPath, 'pubspec.yaml'));
+    if (!file.existsSync()) {
+      return const Result.err(
+        StorageFailure(code: 'FX-STORE-005', message: 'no pubspec.yaml'),
+      );
+    }
+    // Line-based rewrite preserves the user's formatting and comments —
+    // only `  name: <constraint>` dependency lines are touched. A bare
+    // `  name:` (git/path dep with a nested map) is left alone.
+    final lines = (await file.readAsString()).split('\n');
+    final changed = <String>[];
+    for (var i = 0; i < lines.length; i++) {
+      for (final bump in bumps.entries) {
+        final match = RegExp(
+          '^(\\s{2}${RegExp.escape(bump.key)}:\\s*)'
+          r'\S[^#]*?(\s*#.*)?$',
+        ).firstMatch(lines[i]);
+        if (match != null) {
+          lines[i] = '${match.group(1)}^${bump.value}${match.group(2) ?? ''}';
+          changed.add(bump.key);
+        }
+      }
+    }
+    if (changed.isNotEmpty) {
+      await file.writeAsString(lines.join('\n'));
+    }
+    return Result.ok(changed);
+  }
+
+  @override
   Future<Result<void>> linkSdk(Project project, InstalledSdk sdk) {
     return lock.withExclusive(() async {
       final linkPath = p.join(project.rootPath, '.flutterx', 'sdk');

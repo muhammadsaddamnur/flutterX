@@ -6,4 +6,5 @@ library;
 
 export 'src/host_platform.dart';
 export 'src/platform_health.dart';
+export 'src/pub_dependency_simulator.dart';
 export 'src/shim_installer.dart';

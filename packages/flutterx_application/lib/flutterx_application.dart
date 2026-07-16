@@ -22,4 +22,5 @@ export 'src/use_cases/repair_environment.dart';
 export 'src/use_cases/resolve_project.dart';
 export 'src/use_cases/run_doctor.dart';
 export 'src/use_cases/show_current.dart';
+export 'src/use_cases/upgrade_sdk.dart';
 export 'src/use_cases/use_sdk.dart';

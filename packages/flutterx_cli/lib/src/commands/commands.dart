@@ -501,6 +501,181 @@ final commandSpecs = <CommandSpec>[
     },
   ),
   CommandSpec(
+    name: 'upgrade',
+    description: 'Plan (and optionally apply) an SDK upgrade.',
+    configure: (parser) => parser
+      ..addFlag('advise', negatable: false)
+      ..addFlag('bump-deps', negatable: false)
+      ..addFlag('yes', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addOption('to', help: 'Target version (default: newest stable).'),
+    run: (ctx) async {
+      final advice = await ctx.api.upgrade.advise(
+        ctx.workingDirectory,
+        targetSpecifier: ctx.args['to'] as String?,
+        onProgress: ctx.reportProgress,
+      );
+      ctx.finishProgress();
+      switch (advice) {
+        case Err(:final failure):
+          return fail(ctx.console, failure);
+        case Ok(:final value):
+          if (value.alreadyLatest) {
+            if (ctx.console.json) {
+              ctx.console.emitJson(
+                ok: true,
+                data: {'current': '${value.current}', 'alreadyLatest': true},
+              );
+            } else {
+              ctx.console.success(
+                'Flutter ${value.current} is already the newest allowed '
+                'stable',
+              );
+            }
+            return ExitCodes.ok;
+          }
+          final report = value.report!;
+          if (ctx.console.json) {
+            ctx.console.emitJson(
+              ok: report.verdict != UpgradeVerdict.blocked,
+              data: {
+                'from': '${report.from}',
+                'to': '${report.to}',
+                'delta': report.sdkDelta.name,
+                'dart': '${report.dartFrom} → ${report.dartTo}',
+                'verdict': report.verdict.name,
+                'unaffected': report.unaffectedCount,
+                'needsBump': [
+                  for (final impact in report.needsBump)
+                    {
+                      'name': impact.name,
+                      'from': '${impact.currentVersion}',
+                      'to': '${impact.suggestedVersion}',
+                    },
+                ],
+                'blocking': [
+                  for (final impact in report.blocking)
+                    {'name': impact.name, 'note': ?impact.note},
+                ],
+                'notes': [for (final note in report.notes) note.text],
+                'isDowngrade': value.isDowngrade,
+              },
+            );
+            return report.verdict == UpgradeVerdict.blocked ? 16 : ExitCodes.ok;
+          }
+
+          // The docs/03 §8.2 report shape.
+          ctx.console.write(
+            'Upgrade plan: ${report.from} → ${report.to} '
+            '(${report.sdkDelta.name}, '
+            'Dart ${report.dartFrom} → ${report.dartTo})',
+          );
+          if (value.isDowngrade) {
+            ctx.console.warn(
+              'this is a DOWNGRADE — newer-format caches/locks may need '
+              'cleaning (docs/03 §8)',
+            );
+          }
+          ctx.console.write('');
+          ctx.console.success('${report.unaffectedCount} packages unaffected');
+          if (report.needsBump.isNotEmpty) {
+            ctx.console.warn(
+              '${report.needsBump.length} package(s) need version bumps:',
+            );
+            ctx.console.table([
+              for (final impact in report.needsBump)
+                [
+                  '    ${impact.name}',
+                  '${impact.currentVersion} → ${impact.suggestedVersion}',
+                ],
+            ]);
+          }
+          for (final impact in report.blocking) {
+            ctx.console.writeError(
+              '✗ ${impact.name}: ${impact.note ?? 'cannot resolve'}',
+            );
+          }
+          if (report.notes.isNotEmpty) {
+            ctx.console.write('');
+            ctx.console.write('  Notes from ${report.from} → ${report.to}:');
+            for (final note in report.notes) {
+              ctx.console.write('  • ${note.text}');
+            }
+          }
+          ctx.console.write('');
+          final verdictLabel = switch (report.verdict) {
+            UpgradeVerdict.safe => 'SAFE',
+            UpgradeVerdict.safeWithChanges => 'SAFE WITH CHANGES',
+            UpgradeVerdict.blocked => 'BLOCKED',
+          };
+          ctx.console.write('Verdict: $verdictLabel.');
+
+          final adviseOnly =
+              ctx.args['advise'] as bool || ctx.args['dry-run'] as bool;
+          if (report.verdict == UpgradeVerdict.blocked) {
+            for (final impact in report.blocking) {
+              ctx.console.info('remediation: review ${impact.name}');
+            }
+            return 16;
+          }
+          if (adviseOnly) {
+            ctx.console.info(
+              'apply with: flutterx upgrade --to ${report.to}'
+              '${report.needsBump.isEmpty ? '' : ' --bump-deps'}',
+            );
+            return ExitCodes.ok;
+          }
+
+          // Apply path: confirm, then re-pin + bump + pub get.
+          if (!(ctx.args['yes'] as bool)) {
+            if (!ctx.interactive) {
+              ctx.console.writeError(
+                '✗ refusing to apply without consent — pass --yes '
+                '(or --advise to only look)',
+              );
+              return ExitCodes.usage;
+            }
+            ctx.console.write('Apply this upgrade? [Y/n]');
+            final answer = (ctx.promptLine?.call() ?? 'n').trim().toLowerCase();
+            if (answer == 'n' || answer == 'no') {
+              ctx.console.info('nothing changed');
+              return ExitCodes.ok;
+            }
+          }
+          final applied = await ctx.api.upgrade.apply(
+            ctx.workingDirectory,
+            report,
+            bumpDeps: ctx.args['bump-deps'] as bool,
+            onProgress: ctx.reportProgress,
+          );
+          ctx.finishProgress();
+          switch (applied) {
+            case Err(:final failure):
+              return fail(ctx.console, failure);
+            case Ok(:final value):
+              ctx.console.success(
+                'upgraded to Flutter ${report.to} — lock written',
+              );
+              if (value.bumped.isNotEmpty) {
+                ctx.console.success(
+                  'pubspec.yaml bumped: ${value.bumped.join(', ')}',
+                );
+              }
+              if (value.pubGetExitCode != 0) {
+                ctx.console.warn(
+                  'pub get exited ${value.pubGetExitCode} — review above',
+                );
+              }
+              ctx.console.info(
+                'post-upgrade checklist: run your tests; review the notes '
+                'above; commit .flutterx/resolution.lock + pubspec changes',
+              );
+              return ExitCodes.ok;
+          }
+      }
+    },
+  ),
+  CommandSpec(
     name: 'repair',
     description: 'Diagnose and fix store/project problems.',
     configure: (parser) => parser
