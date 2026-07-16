@@ -48,10 +48,19 @@ void main() {
       renderer(const ProgressEvent(phase: 'fetch', message: 'fetching…'));
       final framesAtEvent = raw.length;
       // No further events — the timer alone must keep redrawing so a
-      // long silent operation never looks stuck.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      // long silent operation never looks stuck. Deadline-based rather
+      // than a fixed window: CI runners stall unpredictably.
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (raw.length < framesAtEvent + 2 &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
       renderer.finish();
-      expect(raw.length, greaterThan(framesAtEvent + 1));
+      expect(
+        raw.length,
+        greaterThanOrEqualTo(framesAtEvent + 2),
+        reason: 'idle timer never redrew',
+      );
       expect(raw[framesAtEvent], contains('fetching…'));
       // And the animation stops with finish.
       final framesAtFinish = raw.length;
