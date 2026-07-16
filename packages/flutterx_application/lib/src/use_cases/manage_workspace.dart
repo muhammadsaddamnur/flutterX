@@ -82,6 +82,12 @@ final class ManageWorkspace {
         .toList(),
   );
 
+  /// Workspace-relative display path, forward slashes on every platform
+  /// (same normalization as evidence paths — reports and locks must not
+  /// differ between OSes).
+  static String _rel(String path, String from) =>
+      p.relative(path, from: from).replaceAll(r'\', '/');
+
   static const _noWorkspace = StorageFailure(
     code: 'FX-STORE-010',
     message:
@@ -100,7 +106,7 @@ final class ManageWorkspace {
       [
         for (final member in workspace.members)
           MemberStatus(
-            path: p.relative(member.path, from: workspace.rootPath),
+            path: _rel(member.path, workspace.rootPath),
             lockedVersion: (await _projects.readLock(
               member.project,
             ))?.chosen.version,
@@ -298,7 +304,7 @@ final class ManageWorkspace {
         rows: [
           for (final (member, evidence, candidates) in solved)
             MemberRow(
-              path: p.relative(member.path, from: workspace.rootPath),
+              path: _rel(member.path, workspace.rootPath),
               constraintText: _constraintText(evidence),
               candidateCount: candidates.candidates.length,
               tightest: candidates.candidates.length == tightestCount,
@@ -322,10 +328,7 @@ final class ManageWorkspace {
         workingDirectory: member.path,
       );
       if (exit != 0) {
-        return Result.ok((
-          exit,
-          p.relative(member.path, from: workspace.rootPath),
-        ));
+        return Result.ok((exit, _rel(member.path, workspace.rootPath)));
       }
     }
     return const Result.ok((0, null));
@@ -343,7 +346,7 @@ final class ManageWorkspace {
         final b = {for (final c in solved[j].$3.candidates) c.version};
         if (a.intersection(b).isEmpty) {
           String describe(int index) =>
-              '${p.relative(solved[index].$1.path, from: rootPath)} '
+              '${_rel(solved[index].$1.path, rootPath)} '
               '(${_constraintText(solved[index].$2)})';
           return (describe(i), describe(j));
         }
@@ -353,7 +356,7 @@ final class ManageWorkspace {
     final byCount = [...solved]
       ..sort((x, y) => x.$3.candidates.length - y.$3.candidates.length);
     String describe((WorkspaceMember, ProjectEvidence, CandidateSet) s) =>
-        '${p.relative(s.$1.path, from: rootPath)} (${_constraintText(s.$2)})';
+        '${_rel(s.$1.path, rootPath)} (${_constraintText(s.$2)})';
     return (describe(byCount[0]), describe(byCount[1]));
   }
 

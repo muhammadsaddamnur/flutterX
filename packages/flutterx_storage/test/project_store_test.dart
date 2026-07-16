@@ -283,11 +283,14 @@ rules:
       final ws = await store.findWorkspace(p.join(wsRoot.path, 'apps', 'shop'));
       expect(ws, isNotNull);
       expect(p.equals(ws!.rootPath, wsRoot.path), isTrue);
-      expect(ws.members.map((m) => p.relative(m.path, from: ws.rootPath)), [
-        'apps/admin',
-        'apps/shop',
-        'packages/ui_kit',
-      ]);
+      expect(
+        ws.members.map(
+          // Forward slashes for the comparison — Windows separators are a
+          // display concern the application layer normalizes.
+          (m) => p.relative(m.path, from: ws.rootPath).replaceAll(r'\', '/'),
+        ),
+        ['apps/admin', 'apps/shop', 'packages/ui_kit'],
+      );
       expect(ws.policySettings, {'rules.channel-policy.allow': 'stable'});
       final shop = ws.members.firstWhere((m) => m.path.endsWith('shop'));
       expect(shop.policySettings, {
